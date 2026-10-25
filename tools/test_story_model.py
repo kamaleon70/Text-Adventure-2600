@@ -109,6 +109,34 @@ class StoryModelTests(unittest.TestCase):
         self.assertIn("SceneActionBackgroundColors\n        dc.b $66,$02", source)
         self.assertIn("SceneBorderStyles\n        dc.b $00,$01", source)
 
+    def test_room_presets_are_optional_and_scene_overrides_win(self) -> None:
+        project = self.make_large_project(2)
+        project["appearance_presets"] = [{
+            "id": "castle", "name": "Castle",
+            "appearance": {
+                "background_color": 0x04, "border_color": 0x06,
+                "text_color": 0x0E, "action_text_color": 0x1E,
+                "action_background_enabled": True,
+                "action_background_color": 0x24, "border_style": "solid",
+            },
+        }]
+        project["rooms"][0]["appearance_preset"] = "castle"
+        project["rooms"][0]["appearance_overrides"] = {"border_color": 0x08}
+        project["rooms"][0]["scenes"][0]["appearance_overrides"] = {"background_color": 0x0A}
+        validated = validate_project(project)
+        self.assertEqual(validated["rooms"][1]["appearance_preset"], None)
+        self.assertEqual(validated["rooms"][1]["appearance_overrides"], {})
+        source = generate_bank_text(validated, 2)
+        self.assertIn("SceneBackgroundColors\n        dc.b $0A,$82", source)
+        self.assertIn("SceneBorderColors\n        dc.b $08,$84", source)
+        self.assertIn("SceneBorderStyles\n        dc.b $01,$00", source)
+
+    def test_room_rejects_missing_appearance_preset(self) -> None:
+        project = self.make_large_project(1)
+        project["rooms"][0]["appearance_preset"] = "missing"
+        with self.assertRaisesRegex(StoryError, "missing preset"):
+            validate_project(project)
+
     def test_ending_scene_generates_restart_markers(self) -> None:
         project = self.make_large_project(2)
         project["rooms"][0]["scenes"][0]["ending"] = True

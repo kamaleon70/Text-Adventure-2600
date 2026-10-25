@@ -9,7 +9,7 @@ const files = [
   "src/engine.asm",
   "src/boot.asm",
   "src/splash.asm",
-  "src/tiny_font.inc",
+  "src/text_adventure_font.inc",
   "lib/vcs.h",
   "lib/macro.h",
   "lib/xmacro.h",

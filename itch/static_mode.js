@@ -1,2 +1,2 @@
-window.TINY_TEXT_STATIC = true;
-window.TINY_TEXT_SOURCE_ROOT = "";
+window.TEXT_ADVENTURE_2600_STATIC = true;
+window.TEXT_ADVENTURE_2600_SOURCE_ROOT = "";

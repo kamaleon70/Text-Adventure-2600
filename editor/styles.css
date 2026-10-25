@@ -151,6 +151,9 @@ input:focus, select:focus { outline: 3px solid rgba(182,214,109,.5); border-colo
 .scene-appearance-card { margin-top: 18px; }
 .scene-appearance-card .mini-actions { align-items: center; }
 .scene-appearance-card .mini-actions > span { color: var(--muted); font: 700 11px monospace; }
+.room-appearance-controls { margin: 14px 0; padding: 12px; background: #f2eedf; border-radius: 8px; }
+.room-appearance-controls label { max-width: 520px; }
+.appearance-copy-row { display: grid; grid-template-columns: minmax(240px, 1fr) auto; gap: 10px; align-items: end; margin-top: 12px; }
 .scene-appearance-fields { display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 10px; margin-top: 14px; }
 .scene-appearance-row { display: grid; grid-template-columns: 1fr; gap: 7px; padding: 11px; background: #f2eedf; border-radius: 8px; }
 .scene-appearance-row small { color: var(--muted); font: 11px monospace; }
@@ -174,7 +177,10 @@ input:focus, select:focus { outline: 3px solid rgba(182,214,109,.5); border-colo
 #play-flags label { display: flex; grid-template-columns: none; align-items: center; gap: 8px; color: var(--ink); font: 12px monospace; }
 #play-flags input { width: 17px; min-height: 17px; }
 .appearance-layout { display: grid; grid-template-columns: minmax(360px, .85fr) minmax(500px, 1.15fr); gap: 18px; align-items: start; }
+.appearance-settings-stack { display: grid; gap: 18px; }
 .appearance-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.appearance-presets-card .preset-identity { margin-bottom: 14px; }
+.appearance-presets-card .appearance-fields:empty::before { content: "Add a preset to create a reusable room theme."; grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
 .colour-control { display: grid; grid-template-columns: 38px 1fr; gap: 8px; align-items: center; }
 .colour-control i { display: block; width: 38px; height: 38px; border: 2px solid rgba(16,32,27,.35); border-radius: 7px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
 .action-background-controls { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
@@ -258,7 +264,7 @@ pre { min-height: 250px; max-height: 440px; margin: 0; padding: 18px; overflow: 
 .itch-warning { margin-bottom: 18px; border-left: 6px solid var(--green); background: #edf1df; }
 @media (max-width: 900px) {
   .masthead, .page-heading { align-items: flex-start; flex-direction: column; }
-  .capacity-row, .editor-layout, .editing-columns, .scene-appearance-fields, .play-layout, .appearance-layout, .build-grid, .build-runtime, .manual-layout, .splash-grid, .flags-layout, .debug-banks, .room-exits { grid-template-columns: 1fr; }
+  .capacity-row, .editor-layout, .editing-columns, .scene-appearance-fields, .play-layout, .appearance-layout, .build-grid, .build-runtime, .manual-layout, .splash-grid, .flags-layout, .debug-banks, .room-exits, .room-appearance-controls { grid-template-columns: 1fr; }
   .build-runtime #job-output { height: auto; min-height: 250px; max-height: 440px; }
   .bank-capacities { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
   .legend { justify-self: start; }

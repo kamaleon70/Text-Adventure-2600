@@ -5,6 +5,8 @@ Atari 2600 text adventures. Its renderer began with Steven E. Hugg's CC0
 `tinyfonts2.a` example. Release and licensing details are in `LICENSING.md`,
 `ROM_OUTPUT_EXCEPTION.md`, and `NOTICE.md`.
 
+Current editor version: **0.4 beta**.
+
 Each scene has ten rows of 12 characters. The engine owns the eleventh row for
 movement, LOOK/NEXT, inventory, and contextual actions.
 
@@ -24,7 +26,7 @@ starting port, add—for example—`-Port 9000`. The editor provides:
 - a draggable logical-room map with primary and continuation scenes;
 - room exits, per-scene overrides, and same-room NEXT links;
 - 64 persistent flags, eight portable objects, conditional descriptions, and contextual actions;
-- configurable Atari background, border, text, and action-row colours;
+- configurable Atari background, border, text, and action-row colours, with reusable room presets and per-scene overrides;
 - an optional colour splash-screen importer;
 - browser-local draft recovery plus portable Save/Load config files;
 - browser-only DASM assembly, ROM download, and embedded Javatari playtesting;
@@ -57,7 +59,7 @@ and the shared logic bank every frame.
 ## Build and run
 
 The editor's **Build & download** button assembles the current editor contents
-and downloads `text_adventure_f4.bin`. **Build & run Javatari** assembles the
+and downloads `textadventure2600.bin`. **Build & run Javatari** assembles the
 same 32K image and inserts it into the bundled emulator as an F4 cartridge.
 
 For a native build, DASM is expected at
@@ -119,7 +121,7 @@ rows, and a 12-byte action-line buffer. `$DF-$FF` remains available for the
 - `src/engine.asm` — shared logic and timed text renderer roles
 - `src/boot.asm` — immediate bank-0 startup when no splash is enabled
 - `src/splash.asm` — optional splash kernel and bank-1 handoff
-- `src/tiny_font.inc` — 4×5 font lookup tables
+- `src/text_adventure_font.inc` — 4×5 font lookup tables
 - `src/bank0.asm` through `src/bank7.asm` — physical F4 banks
 - `src/data/logic_story.inc` — generated global story tables
 - `src/data/bank2_text.inc` through `bank7_text.inc` — generated scene text

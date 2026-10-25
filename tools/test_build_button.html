@@ -37,7 +37,7 @@
           document.querySelector("#build-download").click();
           const downloadStarted = Date.now();
           const waitForDownload = window.setInterval(() => {
-            if (frame.contentWindow.__downloadedRomName === "text_adventure_f4.bin") {
+            if (frame.contentWindow.__downloadedRomName === "textadventure2600.bin") {
               clearInterval(waitForDownload);
               result.textContent = "PASS: Build & run opened Javatari; Build & download produced the ROM";
             } else if (document.querySelector("#job-status")?.textContent === "Failed" || Date.now() - downloadStarted > 30000) {

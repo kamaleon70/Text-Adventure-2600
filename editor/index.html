@@ -12,13 +12,14 @@
     <div class="brand-lockup">
       <img class="brand-logo" src="logomauro.png" alt="kamaleon70 logo" width="100" height="100">
       <div class="brand-copy">
-        <p class="eyebrow brand-byline">by kamaleon70 <span class="editor-version">Version 0.3 beta</span></p>
+        <p class="eyebrow brand-byline">by kamaleon70 <span class="editor-version">Version 0.4 beta</span></p>
         <h1>Text Adventure <span>2600</span></h1>
         <p class="subtitle">Shape rooms, continuation scenes, actions, and twelve-character text.</p>
       </div>
     </div>
     <div class="header-actions">
       <span id="save-state" class="badge saved">Saved</span>
+      <button id="new-project" class="button ghost" type="button">New project</button>
       <button id="load-project" class="button ghost" type="button">Load config</button>
       <input id="load-project-file" class="hidden" type="file" accept=".json,application/json">
       <button id="download-project" class="button primary" type="button">Save config</button>
@@ -76,14 +77,16 @@
               <article class="card identity-card">
                 <div class="section-heading"><div><p class="kicker">Shared location</p><h3>Room</h3></div><span>Exits apply to every scene by default</span></div>
                 <div class="form-grid">
-                  <label>Room ID<input id="room-id" maxlength="32" pattern="[A-Za-z_][A-Za-z0-9_]*"></label>
                   <label>Room name<input id="room-name" maxlength="48"></label>
                   <label>Map position<span class="coordinate-pair"><input id="room-x" type="number" min="20" step="1"><input id="room-y" type="number" min="20" step="1"></span></label>
                 </div>
+                <div class="room-appearance-controls">
+                  <label>Room appearance<select id="room-appearance-preset"></select></label>
+                </div>
+                <p class="help">Selecting a room appearance applies it to every scene in this room and clears existing scene colour overrides. Choose Global default to remove the room theme.</p>
                 <div id="room-exits" class="room-exits"></div>
               </article>
               <div class="form-grid scene-identity">
-                <label>Scene ID<input id="scene-id" maxlength="32" pattern="[A-Za-z_][A-Za-z0-9_]*"></label>
                 <label>Scene name<input id="scene-name" maxlength="48"></label>
                 <label>Role<input id="scene-role" readonly></label>
                 <label class="toggle-row"><input id="scene-ending" type="checkbox"> Ending scene — only Restart is available</label>
@@ -102,8 +105,9 @@
                 </article>
               </div>
               <article class="card scene-appearance-card">
-                <div class="section-heading"><div><p class="kicker">Optional scene overrides</p><h3>Scene colours and border</h3></div><div class="mini-actions"><span id="scene-appearance-count">0 custom settings</span><button id="scene-appearance-reset" class="button ghost" type="button">Reset to global defaults</button></div></div>
-                <p class="help">Unchecked settings inherit the global choices from the Appearance tab. Custom settings apply only to this scene.</p>
+                <div class="section-heading"><div><p class="kicker">Optional scene overrides</p><h3>Scene colours and border</h3></div><div class="mini-actions"><span id="scene-appearance-count">0 custom settings</span><button id="scene-appearance-reset" class="button ghost" type="button">Reset to room appearance</button></div></div>
+                <p class="help">Unchecked settings inherit the room preset or room appearance, then the global default. Custom settings apply only to this scene.</p>
+                <div class="appearance-copy-row"><label>Copy appearance from scene<select id="scene-appearance-copy-source"></select></label><button id="scene-appearance-copy" class="button ghost" type="button">Copy to scene</button></div>
                 <div id="scene-appearance-fields" class="scene-appearance-fields"></div>
               </article>
             </div>
@@ -157,6 +161,7 @@
       <section class="panel" data-panel="appearance">
         <div class="page-heading"><div><p class="kicker">Cartridge display</p><h2>Colours and border</h2><p>Choose Atari NTSC colours for the story screen. The preview is approximate; Javatari or Stella remains the final reference.</p></div></div>
         <div class="appearance-layout">
+          <div class="appearance-settings-stack">
           <article class="card appearance-controls">
             <div class="section-heading"><div><p class="kicker">Main screen</p><h3>Story colours</h3></div><span>128-colour Atari palette</span></div>
             <div class="appearance-fields">
@@ -172,6 +177,13 @@
             </div>
             <p class="help">The action-row background changes only the centre area behind the final line. The coloured side panels remain visible.</p>
           </article>
+          <article class="card appearance-presets-card">
+            <div class="section-heading"><div><p class="kicker">Reusable room themes</p><h3>Appearance presets</h3></div><div class="mini-actions"><button id="appearance-preset-add" class="button secondary" type="button">Add preset</button><button id="appearance-preset-delete" class="button danger" type="button">Delete</button></div></div>
+            <div class="form-grid preset-identity"><label>Preset<select id="appearance-preset-select"></select></label><label>Preset name<input id="appearance-preset-name" maxlength="48"></label></div>
+            <div id="appearance-preset-fields" class="appearance-fields"></div>
+            <p class="help">Assign a preset to any number of rooms. Editing it once updates every linked room and scene unless that scene has its own overrides.</p>
+          </article>
+          </div>
           <article class="card appearance-preview-card">
             <div class="section-heading"><div><p class="kicker">Approximate NTSC preview</p><h3>Game screen</h3></div><span id="appearance-code-summary"></span></div>
             <div id="appearance-preview" class="appearance-preview">
@@ -244,7 +256,7 @@
           </article>
           <article class="card manual-card" data-manual-guide="rooms">
             <p class="kicker">Locations and text</p><h3>Rooms and scenes</h3>
-            <ul><li>A <strong>room</strong> is a logical location. Its four exits are shared by its scenes unless a scene explicitly overrides one.</li><li>A <strong>scene</strong> is one Atari text screen: ten rows of up to 12 characters. Text is converted to uppercase and the eleventh action row is controlled by the game engine.</li><li><strong>Set start room</strong> chooses where a new game begins. <strong>Make primary</strong> chooses which scene appears when the player enters that room.</li><li>IDs must be unique and start with a letter or underscore. Names are editor labels and may be more descriptive.</li><li><strong>Add scene</strong> creates another page inside the same room. Earlier/Later changes its authoring order.</li></ul>
+            <ul><li>A <strong>room</strong> is a logical location. Its four exits are shared by its scenes unless a scene explicitly overrides one.</li><li>A <strong>scene</strong> is one Atari text screen: ten rows of up to 12 characters. Text is converted to uppercase and the eleventh action row is controlled by the game engine.</li><li><strong>Set start room</strong> chooses where a new game begins. <strong>Make primary</strong> chooses which scene appears when the player enters that room.</li><li>Room names must be unique. Scene names must be unique inside their room; internal IDs are created automatically.</li><li><strong>Add scene</strong> creates another page inside the same room. Earlier/Later changes its authoring order.</li></ul>
           </article>
           <article class="card manual-card" data-manual-guide="navigation">
             <p class="kicker">Multiple pages</p><h3>NEXT and movement overrides</h3>
@@ -279,7 +291,7 @@
           </article>
           <article class="card manual-card" data-manual-guide="appearance">
             <p class="kicker">Cartridge display</p><h3>Colours and border</h3>
-            <ul><li>Select separate Atari colours for the centre story background, side panels, story text, and action-row text.</li><li><strong>Striped side panels</strong> preserves the original look. <strong>Solid side panels</strong> fills both sides with the selected panel colour, as shown in the preview.</li><li>The optional action-row background changes only the centre area behind the final line; the side panels continue beside it.</li><li>These choices are the global defaults. In <strong>Rooms &amp; scenes</strong>, open a scene and enable only the settings that should be different for that scene. Unchecked settings continue to follow the global choices.</li><li><strong>Reset to global defaults</strong> removes every custom colour and border setting from that scene.</li><li>The browser preview approximates NTSC colours. Test the finished ROM in Javatari or Stella before publishing.</li></ul>
+            <ul><li>Select separate Atari colours for the centre story background, side panels, story text, and action-row text.</li><li><strong>Striped side panels</strong> preserves the original look. <strong>Solid side panels</strong> fills both sides with the selected panel colour, as shown in the preview.</li><li>The optional action-row background changes only the centre area behind the final line; the side panels continue beside it.</li><li>Create reusable presets such as Outdoor, Castle, or Dungeon, then select one from a room's <strong>Room appearance</strong> list.</li><li>Selecting a room appearance applies it to every scene in the room and clears its previous scene overrides. You can then customize individual scenes again if needed.</li><li>Individual scenes can inherit the room appearance, override selected settings, or copy another scene.</li><li>The inheritance order is <strong>Global default → Room appearance → Scene override</strong>.</li><li>The browser preview approximates NTSC colours. Test the finished ROM in Javatari or Stella before publishing.</li></ul>
           </article>
           <article class="card manual-card" data-manual-guide="splash">
             <p class="kicker">Opening artwork</p><h3>Create a splash screen</h3>

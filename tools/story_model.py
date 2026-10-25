@@ -91,7 +91,7 @@ def _migrate_v1(raw: dict[str, Any]) -> dict[str, Any]:
         })
     return {
         "version": 2,
-        "title": raw.get("title", "Tiny Text Adventure"),
+        "title": raw.get("title", "Text Adventure 2600"),
         "start_room": raw.get("start_page"),
         "rooms": rooms,
     }
@@ -252,7 +252,7 @@ def validate_project(raw: Any) -> dict[str, Any]:
     if raw.get("version", 1) == 1 or "rooms" not in raw:
         raw = _migrate_v1(raw)
 
-    title = raw.get("title", "Tiny Text Adventure")
+    title = raw.get("title", "Text Adventure 2600")
     if not isinstance(title, str) or not title.strip() or len(title) > 80:
         raise StoryError("Project title must contain 1-80 characters")
     rooms = raw.get("rooms")
@@ -261,6 +261,24 @@ def validate_project(raw: Any) -> dict[str, Any]:
 
     splash = _validate_splash(raw.get("splash"))
     appearance = _validate_appearance(raw.get("appearance"))
+    raw_presets = raw.get("appearance_presets", [])
+    if not isinstance(raw_presets, list) or len(raw_presets) > 32:
+        raise StoryError("appearance_presets must contain at most 32 entries")
+    appearance_presets: list[dict[str, Any]] = []
+    preset_ids: set[str] = set()
+    for index, raw_preset in enumerate(raw_presets):
+        if not isinstance(raw_preset, dict):
+            raise StoryError(f"appearance preset {index + 1} must be an object")
+        preset_id = raw_preset.get("id")
+        if not isinstance(preset_id, str) or not ID_PATTERN.fullmatch(preset_id):
+            raise StoryError(f"appearance preset {index + 1} has an invalid ID")
+        if preset_id in preset_ids:
+            raise StoryError(f"Duplicate appearance preset ID: {preset_id}")
+        name = raw_preset.get("name", "")
+        if not isinstance(name, str) or not name.strip() or len(name) > 48:
+            raise StoryError(f"{preset_id}: preset name must contain 1-48 characters")
+        preset_ids.add(preset_id)
+        appearance_presets.append({"id": preset_id, "name": name.strip(), "appearance": _validate_appearance(raw_preset.get("appearance"))})
     raw_flags = raw.get("flags", [])
     if not isinstance(raw_flags, list) or len(raw_flags) > MAX_FLAGS:
         raise StoryError(f"Project flags must be a list containing at most {MAX_FLAGS} entries")
@@ -495,11 +513,17 @@ def validate_project(raw: Any) -> dict[str, Any]:
             "id": room_id,
             "name": name.strip(),
             "position": {"x": x, "y": y},
+            "appearance_preset": _clean_target(raw_room.get("appearance_preset"), f"{room_id}: appearance_preset"),
+            "appearance_overrides": _validate_appearance_overrides(raw_room.get("appearance_overrides"), room_id),
             "entry_scene": entry_scene,
             "exits": exits,
             "scenes": clean_scenes,
             "variants": variants,
         })
+
+    for room in clean_rooms:
+        if room["appearance_preset"] is not None and room["appearance_preset"] not in preset_ids:
+            raise StoryError(f"{room['id']}: appearance_preset references missing preset '{room['appearance_preset']}'")
 
     if scene_count > MAX_PAGES_PER_BANK * usable_bank_count:
         raise StoryError(
@@ -529,7 +553,7 @@ def validate_project(raw: Any) -> dict[str, Any]:
                 if target_room is not None and target_room not in room_ids:
                     raise StoryError(f"{scene['id']}: {direction} override points to missing room '{target_room}'")
 
-    return {"version": 2, "title": title.strip(), "start_room": start_room, "appearance": appearance, "splash": splash, "flags": clean_flags, "objects": clean_objects, "rooms": clean_rooms}
+    return {"version": 2, "title": title.strip(), "start_room": start_room, "appearance": appearance, "appearance_presets": appearance_presets, "splash": splash, "flags": clean_flags, "objects": clean_objects, "rooms": clean_rooms}
 
 
 def scene_records(project: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
@@ -768,7 +792,16 @@ def generate_bank_text(project: dict[str, Any], bank: int) -> str:
             lines.append("        align $100")
         lines.extend([f"; {room['id']} / {scene['id']} - {scene['name']}", f"Page{index}Text"])
         lines.extend(f'        dc.b "{row.ljust(ROW_WIDTH).replace(" ", "[")}"' for row in scene["text"])
-    effective = [{**project["appearance"], **scene["appearance_overrides"]} for _, scene in pages]
+    presets = {preset["id"]: preset["appearance"] for preset in project["appearance_presets"]}
+    effective = [
+        {
+            **project["appearance"],
+            **presets.get(room["appearance_preset"], {}),
+            **room["appearance_overrides"],
+            **scene["appearance_overrides"],
+        }
+        for room, scene in pages
+    ]
     effective.extend(project["appearance"] for _ in range(MAX_PAGES_PER_BANK - len(effective)))
     lines.extend(["", "; Six bytes per scene; 17 scenes occupy $FF78-$FFDD.", "        org $FF78"])
 

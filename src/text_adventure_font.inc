@@ -1,4 +1,4 @@
-; Unpacked 4x5 font tables from reference/tiny_text.asm.
+; Unpacked 4x5 font tables used by Text Adventure 2600.
 ; Characters are ordinary byte values from ASCII 41 through 91. The sample
 ; text uses '[' (91) as a blank, just like the reference program.
 

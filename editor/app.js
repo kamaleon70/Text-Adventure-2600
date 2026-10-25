@@ -14,8 +14,9 @@ const WORLD_PADDING = 180;
 const APPEARANCE_DEFAULTS = { background_color: 0x82, border_color: 0x84, text_color: 0x0E, action_text_color: 0x0E, action_background_enabled: false, action_background_color: 0x24, border_style: "striped" };
 const SCENE_APPEARANCE_LABELS = { background_color: "Text background", border_color: "Border colour", text_color: "Story text", action_text_color: "Action-row text", border_style: "Side-panel style", action_background_enabled: "Action background", action_background_color: "Action background colour" };
 const ATARI_HUE_NAMES = ["Gray", "Gold", "Orange", "Red-orange", "Red", "Rose", "Purple", "Violet", "Blue", "Blue", "Cyan", "Turquoise", "Green", "Yellow-green", "Olive", "Yellow"];
-const AUTOSAVE_KEY = "tinyTextAdventure.project.autosave.v1";
-const STATIC_MODE = window.TINY_TEXT_STATIC === true || new URLSearchParams(window.location.search).get("static") === "1";
+const AUTOSAVE_KEY = "textAdventure2600.project.autosave.v1";
+const LEGACY_AUTOSAVE_KEY = "tinyTextAdventure.project.autosave.v1";
+const STATIC_MODE = window.TEXT_ADVENTURE_2600_STATIC === true || new URLSearchParams(window.location.search).get("static") === "1";
 let autosaveTimer = null;
 let worldResizeFrame = 0;
 let worldResizeObserver = null;
@@ -33,6 +34,7 @@ const state = {
   effectScene: null,
   effectAction: "next",
   contextScene: null,
+  appearancePreset: null,
   dirty: false,
   pollTimer: null,
 };
@@ -75,9 +77,25 @@ function appearanceSettings() {
   state.project.appearance = { ...APPEARANCE_DEFAULTS, ...(state.project.appearance || {}) };
   return state.project.appearance;
 }
+function appearancePresets() {
+  state.project.appearance_presets ||= [];
+  return state.project.appearance_presets;
+}
+function appearancePresetById(id) {
+  return appearancePresets().find((preset) => preset.id === id) || null;
+}
+function roomAppearance(room) {
+  room.appearance_overrides ||= {};
+  const preset = appearancePresetById(room.appearance_preset);
+  return { ...appearanceSettings(), ...(preset?.appearance || {}), ...room.appearance_overrides };
+}
+function clearRoomSceneAppearanceOverrides(room) {
+  room.scenes.forEach((scene) => { scene.appearance_overrides = {}; });
+}
 function sceneAppearance(scene) {
   scene.appearance_overrides ||= {};
-  return { ...appearanceSettings(), ...scene.appearance_overrides };
+  const room = sceneRecord(scene.id)?.room;
+  return { ...(room ? roomAppearance(room) : appearanceSettings()), ...scene.appearance_overrides };
 }
 
 function assignBanks() {
@@ -166,12 +184,15 @@ function markSaved() {
 }
 
 function browserSavePayload() {
-  return { app: "Tiny Text Adventure Workshop", saveVersion: 1, savedAt: new Date().toISOString(), project: state.project };
+  return { app: "Text Adventure 2600", saveVersion: 2, savedAt: new Date().toISOString(), project: state.project };
 }
 
 function saveBrowserDraft() {
   if (!state.project) return;
-  try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(browserSavePayload())); }
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(browserSavePayload()));
+    localStorage.removeItem(LEGACY_AUTOSAVE_KEY);
+  }
   catch (error) { console.warn("Could not save the browser draft", error); }
 }
 
@@ -182,9 +203,15 @@ function scheduleBrowserAutosave() {
 
 function cachedProject() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || "null");
+    const current = localStorage.getItem(AUTOSAVE_KEY);
+    const legacy = current ? null : localStorage.getItem(LEGACY_AUTOSAVE_KEY);
+    const parsed = JSON.parse(current || legacy || "null");
     const rawProject = parsed?.project || parsed;
     const project = window.TextAdventureStoryCompiler?.validateProject(rawProject) || rawProject;
+    if (legacy && project) {
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ app: "Text Adventure 2600", saveVersion: 2, savedAt: new Date().toISOString(), project }));
+      localStorage.removeItem(LEGACY_AUTOSAVE_KEY);
+    }
     return project && Array.isArray(project.rooms) && project.rooms.length ? project : null;
   } catch (error) {
     console.warn("Could not restore the browser draft", error);
@@ -200,7 +227,7 @@ function downloadBlob(contents, type, filename) {
 }
 
 function downloadProjectJson() {
-  downloadBlob(JSON.stringify(browserSavePayload(), null, 2), "application/json", "tiny-text-adventure.json");
+  downloadBlob(JSON.stringify(browserSavePayload(), null, 2), "application/json", "textadventure2600.json");
   if (STATIC_MODE) markSaved();
 }
 
@@ -209,7 +236,7 @@ async function loadProjectJson(file) {
   try {
     const parsed = JSON.parse(await file.text());
     const input = parsed?.project || parsed;
-    if (!input || !Array.isArray(input.rooms) || !input.rooms.length) throw new Error("This file does not contain a Tiny Text Adventure project.");
+    if (!input || !Array.isArray(input.rooms) || !input.rooms.length) throw new Error("This file does not contain a Text Adventure 2600 project.");
     const project = window.TextAdventureStoryCompiler.validateProject(input);
     state.project = structuredClone(project);
     state.selectedScene = project.rooms[0].entry_scene;
@@ -217,6 +244,49 @@ async function loadProjectJson(file) {
     state.playFlags = initialPlayFlags(); state.playObjects = initialPlayObjects(); state.playInventory = false;
     markDirty(); renderAll();
   } catch (error) { alert(`Could not load project JSON.\n\n${error.message}`); }
+}
+
+function createEmptyProject() {
+  return window.TextAdventureStoryCompiler.validateProject({
+    version: 2,
+    title: "Untitled Adventure",
+    start_room: "room_1",
+    appearance: { ...APPEARANCE_DEFAULTS },
+    appearance_presets: [],
+    splash: { enabled: false, filename: "", source: "", delay_frames: 120, background_color: 0, metadata: null },
+    flags: [],
+    objects: [],
+    rooms: [{
+      id: "room_1",
+      name: "Start Room",
+      position: { x: 80, y: 80 },
+      appearance_preset: null,
+      appearance_overrides: {},
+      entry_scene: "room_1",
+      exits: { north: null, east: null, south: null, west: null },
+      scenes: [{ id: "room_1", name: "Main description", bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_overrides: {}, effects: {}, context_actions: [] }],
+      variants: [],
+    }],
+  });
+}
+
+function newProject() {
+  if (!confirm("Create a new empty project? Save the current configuration first if you want to keep it.")) return;
+  state.project = createEmptyProject();
+  state.data = { ...(state.data || {}), project: state.project, rom: null };
+  state.selectedScene = state.project.rooms[0].entry_scene;
+  state.variantRoom = state.project.start_room;
+  state.effectScene = state.selectedScene;
+  state.contextScene = state.selectedScene;
+  state.appearancePreset = null;
+  state.playFlags = initialPlayFlags();
+  state.playObjects = initialPlayObjects();
+  state.playInventory = false;
+  state.playAction = "look";
+  state.playScene = state.selectedScene;
+  markDirty();
+  renderAll();
+  showTab("world");
 }
 
 function showTab(name) {
@@ -448,11 +518,9 @@ function renderPageEditor() {
   const { room, scene } = record;
 
   $("#page-heading").textContent = `${room.name} · ${scene.name}`;
-  $("#room-id").value = room.id;
   $("#room-name").value = room.name;
   $("#room-x").value = room.position.x;
   $("#room-y").value = room.position.y;
-  $("#scene-id").value = scene.id;
   $("#scene-name").value = scene.name;
   $("#scene-role").value = scene.id === room.entry_scene ? "Primary room scene" : "Continuation scene";
   $("#scene-ending").checked = Boolean(scene.ending);
@@ -462,6 +530,7 @@ function renderPageEditor() {
   $("#set-entry").textContent = scene.id === room.entry_scene ? "Primary scene" : "Make primary";
   $("#delete-scene").disabled = room.scenes.length === 1;
   $("#delete-room").disabled = state.project.rooms.length === 1 || room.id === state.project.start_room;
+  renderRoomAppearance(room);
 
   const exits = $("#room-exits");
   exits.innerHTML = MOVEMENTS.map((direction) => `<label>${ACTION_LABELS[direction]} exit<select data-room-exit="${direction}">${roomOptions(room.exits[direction] || "")}</select></label>`).join("");
@@ -551,6 +620,20 @@ function uniqueSceneId(prefix) {
   return id;
 }
 
+function uniqueRoomName(startNumber) {
+  let number = startNumber;
+  let name = `New Room ${number}`;
+  while (state.project.rooms.some((room) => room.name.toLocaleLowerCase() === name.toLocaleLowerCase())) name = `New Room ${++number}`;
+  return name;
+}
+
+function uniqueSceneName(room, startNumber) {
+  let number = startNumber;
+  let name = `Continuation ${number}`;
+  while (room.scenes.some((scene) => scene.name.toLocaleLowerCase() === name.toLocaleLowerCase())) name = `Continuation ${++number}`;
+  return name;
+}
+
 function nextRoomPosition() {
   const canvasWidth = $("#world-canvas")?.clientWidth || WORLD_MIN_WIDTH;
   const columns = Math.max(4, Math.floor((Math.max(WORLD_MIN_WIDTH, canvasWidth) - 120) / 240));
@@ -569,8 +652,10 @@ function addRoom() {
   const count = state.project.rooms.length;
   const sceneId = uniqueSceneId(id);
   state.project.rooms.push({
-    id, name: `New Room ${count + 1}`,
+    id, name: uniqueRoomName(count + 1),
     position: nextRoomPosition(),
+    appearance_preset: null,
+    appearance_overrides: {},
     entry_scene: sceneId,
     exits: { north: null, east: null, south: null, west: null },
     scenes: [{ id: sceneId, name: "Main description", bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_overrides: {}, effects: {}, context_actions: [] }],
@@ -586,7 +671,7 @@ function addScene() {
   }
   const { room } = record;
   const id = uniqueSceneId(`${room.id}_page`);
-  room.scenes.push({ id, name: `Continuation ${room.scenes.length}`, bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_overrides: {}, effects: {}, context_actions: [] });
+  room.scenes.push({ id, name: uniqueSceneName(room, room.scenes.length), bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_overrides: {}, effects: {}, context_actions: [] });
   assignBanks(); state.selectedScene = id; markDirty(); renderAll();
 }
 
@@ -627,43 +712,6 @@ function deleteSelectedRoom() {
   state.selectedScene = first.entry_scene;
   if (removedScenes.has(state.playScene)) state.playScene = roomById(state.project.start_room).entry_scene;
   assignBanks(); markDirty(); renderAll();
-}
-
-function renameRoom(newId) {
-  const record = sceneRecord(state.selectedScene);
-  if (!record) return;
-  const room = record.room;
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newId)) { alert("Room IDs must start with a letter or underscore and contain only letters, numbers, and underscores."); renderPageEditor(); return; }
-  if (newId !== room.id && roomById(newId)) { alert(`Room ID “${newId}” is already used.`); renderPageEditor(); return; }
-  const oldId = room.id;
-  room.id = newId;
-  if (state.project.start_room === oldId) state.project.start_room = newId;
-  for (const candidate of state.project.rooms) {
-    for (const direction of MOVEMENTS) if (candidate.exits[direction] === oldId) candidate.exits[direction] = newId;
-    for (const scene of candidate.scenes) {
-      for (const direction of MOVEMENTS) if (scene.exit_overrides[direction] === oldId) scene.exit_overrides[direction] = newId;
-    }
-  }
-  for (const object of state.project.objects || []) if (object.initial_location === oldId) object.initial_location = newId;
-  markDirty(); renderAll();
-}
-
-function renameScene(newId) {
-  const record = sceneRecord(state.selectedScene);
-  if (!record) return;
-  const { room, scene } = record;
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newId)) { alert("Scene IDs must start with a letter or underscore and contain only letters, numbers, and underscores."); renderPageEditor(); return; }
-  if (newId !== scene.id && sceneById(newId)) { alert(`Scene ID “${newId}” is already used.`); renderPageEditor(); return; }
-  const oldId = scene.id;
-  scene.id = newId;
-  for (const candidateRoom of state.project.rooms) {
-    if (candidateRoom.entry_scene === oldId) candidateRoom.entry_scene = newId;
-    for (const variant of candidateRoom.variants || []) if (variant.scene === oldId) variant.scene = newId;
-    for (const candidate of candidateRoom.scenes) if (candidate.next === oldId) candidate.next = newId;
-  }
-  if (state.playScene === oldId) state.playScene = newId;
-  state.selectedScene = newId;
-  markDirty(); renderAll();
 }
 
 function flagOptions(selected = []) {
@@ -973,10 +1021,30 @@ function atariColourOptions(selected) {
   }).join("")}</optgroup>`).join("");
 }
 
+function presetOptions(selected = "", includeGlobal = true) {
+  const global = includeGlobal ? `<option value=""${selected ? "" : " selected"}>Global default</option>` : "";
+  return global + appearancePresets().map((preset) => `<option value="${escapeHtml(preset.id)}"${preset.id === selected ? " selected" : ""}>${escapeHtml(preset.name)}</option>`).join("");
+}
+
+function renderRoomAppearance(room) {
+  room.appearance_preset ||= null;
+  room.appearance_overrides ||= {};
+  const presetSelect = $("#room-appearance-preset");
+  presetSelect.innerHTML = presetOptions(room.appearance_preset);
+  presetSelect.value = room.appearance_preset || "";
+  presetSelect.onchange = () => {
+    room.appearance_preset = presetSelect.value || null;
+    room.appearance_overrides = {};
+    clearRoomSceneAppearanceOverrides(room);
+    markDirty(); renderPageEditor(); renderPlaytest();
+  };
+}
+
 function renderSceneAppearance(scene) {
   const container = $("#scene-appearance-fields");
   if (!container) return;
-  const global = appearanceSettings();
+  const room = sceneRecord(scene.id)?.room;
+  const inherited = room ? roomAppearance(room) : appearanceSettings();
   const overrides = scene.appearance_overrides ||= {};
   const effective = sceneAppearance(scene);
   const colourFields = ["background_color", "border_color", "text_color", "action_text_color", "action_background_color"];
@@ -987,7 +1055,7 @@ function renderSceneAppearance(scene) {
     rows.push(`<div class="scene-appearance-row">
       <label class="scene-override-toggle"><input type="checkbox" data-scene-appearance-toggle="${field}"${custom ? " checked" : ""}> Custom ${SCENE_APPEARANCE_LABELS[field].toLowerCase()}</label>
       <span class="colour-control"><i style="background:${atariNtscColour(effective[field])}"></i><select data-scene-appearance="${field}"${custom ? "" : " disabled"}>${atariColourOptions(effective[field])}</select></span>
-      <small>Global ${code(global[field])}</small>
+      <small>Inherited ${code(inherited[field])}</small>
     </div>`);
   }
   for (const field of ["border_style", "action_background_enabled"]) {
@@ -995,11 +1063,11 @@ function renderSceneAppearance(scene) {
     const options = field === "border_style"
       ? `<option value="striped"${effective[field] === "striped" ? " selected" : ""}>Striped side panels</option><option value="solid"${effective[field] === "solid" ? " selected" : ""}>Solid side panels</option>`
       : `<option value="false"${!effective[field] ? " selected" : ""}>No coloured background</option><option value="true"${effective[field] ? " selected" : ""}>Use coloured background</option>`;
-    const globalLabel = field === "border_style" ? global[field] : (global[field] ? "enabled" : "disabled");
+    const inheritedLabel = field === "border_style" ? inherited[field] : (inherited[field] ? "enabled" : "disabled");
     rows.push(`<div class="scene-appearance-row compact">
       <label class="scene-override-toggle"><input type="checkbox" data-scene-appearance-toggle="${field}"${custom ? " checked" : ""}> Custom ${SCENE_APPEARANCE_LABELS[field].toLowerCase()}</label>
       <select data-scene-appearance="${field}"${custom ? "" : " disabled"}>${options}</select>
-      <small>Global ${escapeHtml(globalLabel)}</small>
+      <small>Inherited ${escapeHtml(inheritedLabel)}</small>
     </div>`);
   }
   container.innerHTML = rows.join("");
@@ -1008,7 +1076,7 @@ function renderSceneAppearance(scene) {
 
   container.querySelectorAll("[data-scene-appearance-toggle]").forEach((toggle) => toggle.addEventListener("change", () => {
     const field = toggle.dataset.sceneAppearanceToggle;
-    if (toggle.checked) overrides[field] = global[field];
+    if (toggle.checked) overrides[field] = inherited[field];
     else delete overrides[field];
     markDirty(); renderSceneAppearance(scene); renderPlaytest();
   }));
@@ -1021,6 +1089,85 @@ function renderSceneAppearance(scene) {
     scene.appearance_overrides = {};
     markDirty(); renderSceneAppearance(scene); renderPlaytest();
   };
+
+  const copySelect = $("#scene-appearance-copy-source");
+  const otherScenes = allSceneRecords().filter(({ scene: candidate }) => candidate !== scene);
+  copySelect.innerHTML = otherScenes.length
+    ? otherScenes.map(({ room: sourceRoom, scene: sourceScene }) => `<option value="${escapeHtml(sourceScene.id)}">${escapeHtml(sourceRoom.name)} / ${escapeHtml(sourceScene.name)}</option>`).join("")
+    : '<option value="">No other scene</option>';
+  copySelect.disabled = otherScenes.length === 0;
+  $("#scene-appearance-copy").disabled = otherScenes.length === 0;
+  $("#scene-appearance-copy").onclick = () => {
+    const source = sceneById(copySelect.value);
+    if (!source) return;
+    scene.appearance_overrides = { ...sceneAppearance(source) };
+    markDirty(); renderSceneAppearance(scene); renderPlaytest();
+  };
+}
+
+function uniqueAppearancePresetId() {
+  let number = appearancePresets().length + 1;
+  let id = `theme_${number}`;
+  while (appearancePresetById(id)) id = `theme_${++number}`;
+  return id;
+}
+
+function addAppearancePreset() {
+  if (appearancePresets().length >= 32) { alert("A project supports at most 32 appearance presets."); return; }
+  const id = uniqueAppearancePresetId();
+  const preset = { id, name: `Theme ${appearancePresets().length + 1}`, appearance: { ...appearanceSettings() } };
+  appearancePresets().push(preset);
+  state.appearancePreset = id;
+  markDirty(); renderAppearance(); renderPageEditor();
+}
+
+function deleteAppearancePreset() {
+  const preset = appearancePresetById(state.appearancePreset);
+  if (!preset || !confirm(`Delete appearance preset “${preset.name}”? Linked rooms will return to the global default.`)) return;
+  state.project.appearance_presets = appearancePresets().filter((candidate) => candidate !== preset);
+  state.project.rooms.forEach((room) => { if (room.appearance_preset === preset.id) room.appearance_preset = null; });
+  state.appearancePreset = state.project.appearance_presets[0]?.id || null;
+  markDirty(); renderAppearance(); renderPageEditor(); renderPlaytest();
+}
+
+function renderAppearancePresets() {
+  const presets = appearancePresets();
+  if (!appearancePresetById(state.appearancePreset)) state.appearancePreset = presets[0]?.id || null;
+  const selected = appearancePresetById(state.appearancePreset);
+  const selector = $("#appearance-preset-select");
+  selector.innerHTML = presets.length
+    ? presets.map((preset) => `<option value="${escapeHtml(preset.id)}"${preset === selected ? " selected" : ""}>${escapeHtml(preset.name)}</option>`).join("")
+    : '<option value="">No presets</option>';
+  selector.disabled = presets.length === 0;
+  selector.onchange = () => { state.appearancePreset = selector.value || null; renderAppearancePresets(); };
+  $("#appearance-preset-delete").disabled = !selected;
+  const name = $("#appearance-preset-name");
+  name.disabled = !selected;
+  name.value = selected?.name || "";
+  name.oninput = () => {
+    if (!selected) return;
+    selected.name = name.value.slice(0, 48) || selected.id;
+    const selectedOption = Array.from(selector.options).find((option) => option.value === selected.id);
+    if (selectedOption) selectedOption.textContent = selected.name;
+    markDirty(); renderPageEditor();
+  };
+
+  const container = $("#appearance-preset-fields");
+  if (!selected) { container.innerHTML = ""; return; }
+  selected.appearance = { ...APPEARANCE_DEFAULTS, ...(selected.appearance || {}) };
+  const colourFields = [
+    ["background_color", "Text background"], ["border_color", "Border colour"],
+    ["text_color", "Story text"], ["action_text_color", "Action-row text"],
+    ["action_background_color", "Action-row background"],
+  ];
+  container.innerHTML = colourFields.map(([field, label]) => `<label>${label}<span class="colour-control"><i style="background:${atariNtscColour(selected.appearance[field])}"></i><select data-preset-appearance="${field}">${atariColourOptions(selected.appearance[field])}</select></span></label>`).join("")
+    + `<label>Side-panel style<select data-preset-appearance="border_style"><option value="striped"${selected.appearance.border_style === "striped" ? " selected" : ""}>Striped side panels</option><option value="solid"${selected.appearance.border_style === "solid" ? " selected" : ""}>Solid side panels</option></select></label>`
+    + `<label class="toggle-row"><input data-preset-appearance="action_background_enabled" type="checkbox"${selected.appearance.action_background_enabled ? " checked" : ""}> Use a coloured action-row background</label>`;
+  container.querySelectorAll("[data-preset-appearance]").forEach((control) => control.addEventListener("change", () => {
+    const field = control.dataset.presetAppearance;
+    selected.appearance[field] = field === "action_background_enabled" ? control.checked : colourFields.some(([candidate]) => candidate === field) ? Number(control.value) : control.value;
+    markDirty(); renderAppearancePresets(); renderPageEditor(); renderPlaytest();
+  }));
 }
 
 function renderAppearance() {
@@ -1059,6 +1206,7 @@ function renderAppearance() {
   action.style.background = appearance.action_background_enabled ? atariNtscColour(appearance.action_background_color) : "transparent";
   const code = (value) => `$${value.toString(16).toUpperCase().padStart(2, "0")}`;
   $("#appearance-code-summary").textContent = `BG ${code(appearance.background_color)} · BORDER ${code(appearance.border_color)} · TEXT ${code(appearance.text_color)}`;
+  renderAppearancePresets();
 }
 
 function applyPlaytestAppearance() {
@@ -1297,6 +1445,7 @@ function bindStaticEvents() {
     worldResizeObserver.observe($("#world-canvas"));
   }
   $("#save").addEventListener("click", saveProject);
+  $("#new-project").addEventListener("click", newProject);
   $("#download-project").addEventListener("click", downloadProjectJson);
   $("#load-project").addEventListener("click", () => { $("#load-project-file").value = ""; $("#load-project-file").click(); });
   $("#load-project-file").addEventListener("change", (event) => loadProjectJson(event.target.files[0]));
@@ -1358,6 +1507,8 @@ function bindStaticEvents() {
     appearanceSettings().action_background_enabled = event.target.checked;
     markDirty(); renderAppearance(); renderPageEditor(); renderPlaytest();
   });
+  $("#appearance-preset-add").addEventListener("click", addAppearancePreset);
+  $("#appearance-preset-delete").addEventListener("click", deleteAppearancePreset);
   $("#variant-room").addEventListener("change", (event) => { state.variantRoom = event.target.value; renderFlags(); });
   $("#add-variant").addEventListener("click", () => {
     if (!state.project.flags.length) { alert("Add a named flag before creating a conditional variant."); return; }
@@ -1421,13 +1572,27 @@ function bindStaticEvents() {
     assignBanks(); markDirty(); renderAll();
   });
 
-  $("#room-id").addEventListener("change", (event) => renameRoom(event.target.value.trim()));
-  $("#scene-id").addEventListener("change", (event) => renameScene(event.target.value.trim()));
-  $("#room-name").addEventListener("input", (event) => {
-    const record = sceneRecord(state.selectedScene); record.room.name = event.target.value.slice(0, 48); markDirty(); renderWorld(); renderPageList(); $("#page-heading").textContent = `${record.room.name} · ${record.scene.name}`;
+  $("#room-name").addEventListener("change", (event) => {
+    const record = sceneRecord(state.selectedScene);
+    const name = event.target.value.trim().slice(0, 48);
+    const duplicate = state.project.rooms.some((room) => room !== record.room && room.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (!name || duplicate) {
+      alert(duplicate ? `Another room is already named “${name}”.` : "A room name cannot be empty.");
+      event.target.value = record.room.name;
+      return;
+    }
+    record.room.name = name; event.target.value = name; markDirty(); renderWorld(); renderPageList(); $("#page-heading").textContent = `${record.room.name} · ${record.scene.name}`;
   });
-  $("#scene-name").addEventListener("input", (event) => {
-    const record = sceneRecord(state.selectedScene); record.scene.name = event.target.value.slice(0, 48); markDirty(); renderPageList(); $("#page-heading").textContent = `${record.room.name} · ${record.scene.name}`;
+  $("#scene-name").addEventListener("change", (event) => {
+    const record = sceneRecord(state.selectedScene);
+    const name = event.target.value.trim().slice(0, 48);
+    const duplicate = record.room.scenes.some((scene) => scene !== record.scene && scene.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (!name || duplicate) {
+      alert(duplicate ? `Another scene in this room is already named “${name}”.` : "A scene name cannot be empty.");
+      event.target.value = record.scene.name;
+      return;
+    }
+    record.scene.name = name; event.target.value = name; markDirty(); renderPageList(); $("#page-heading").textContent = `${record.room.name} · ${record.scene.name}`;
   });
   for (const field of ["x", "y"]) {
     $(`#room-${field}`).addEventListener("change", (event) => {

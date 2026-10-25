@@ -100,7 +100,7 @@ async function buildStaticSources() {
       throw new Error(`Bundled assembly source is missing: ${normalized}`);
     }
     if (!cache.has(normalized)) {
-      const sourceRoot = window.TINY_TEXT_SOURCE_ROOT ?? "../";
+      const sourceRoot = window.TEXT_ADVENTURE_2600_SOURCE_ROOT ?? "../";
       cache.set(normalized, fetch(`${sourceRoot}${normalized}`, { cache: "no-store" }).then(async (response) => {
         if (!response.ok) throw new Error(`Could not load source file: ${normalized}`);
         return response.text();
@@ -151,7 +151,7 @@ async function buildRom() {
 function downloadRom(rom) {
   const url = URL.createObjectURL(new Blob([rom], { type: "application/octet-stream" }));
   const link = document.createElement("a");
-  link.href = url; link.download = "text_adventure_f4.bin"; document.body.appendChild(link); link.click(); link.remove();
+  link.href = url; link.download = "textadventure2600.bin"; document.body.appendChild(link); link.click(); link.remove();
   URL.revokeObjectURL(url);
 }
 
@@ -179,7 +179,7 @@ function runJavatari(rom) {
 <script>
 window.CodeSnap2600_ROM_URL=${JSON.stringify(dataUrl)};
 window.CodeSnap2600_ROM_FORMAT="F4";
-window.CodeSnap2600_ROM_NAME="Tiny Text Adventure";
+window.CodeSnap2600_ROM_NAME="Text Adventure 2600";
 window.CodeSnap2600_AUTO_START=true;
 window.CodeSnap2600_SCREEN_ELEMENT_ID="javatari-screen";
 window.CodeSnap2600_SCREEN_CONSOLE_PANEL_DISABLED=false;

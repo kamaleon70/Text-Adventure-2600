@@ -1,8 +1,8 @@
 ; ---------------------------------------------------------------------------
-; Tiny Text Adventure - split logic/renderer for a 32K F4 cartridge
+; Text Adventure 2600 - split logic/renderer for a 32K F4 cartridge
 ;
-; Built around the native string and display method in
-; reference/tiny_text.asm. It does not use the former FOTR room/text engine.
+; Uses the project's native twelve-character string and display method.
+; It does not use the former FOTR room/text engine.
 ; Bank 1 owns global game logic. Banks 2-7 clone only the timed renderer and
 ; carry seventeen local text scenes each.
 ; ---------------------------------------------------------------------------
@@ -144,7 +144,7 @@ NextFrame
 
         lda #0
         sta VSYNC
-        ; Match the original tiny_text.asm NTSC frame: 37 lines of vertical
+        ; Match the established Text Adventure 2600 NTSC frame: 37 lines of vertical
         ; blank after the three-line VSYNC interval.
         TIMER_SETUP 37
 
@@ -152,7 +152,7 @@ NextFrame
         jsr LoadPagePointer
 
         ; The first line is built during vertical blank. Remaining lines are
-        ; built between DrawText calls, exactly as in tiny_text.asm.
+        ; built between DrawText calls using the stable display sequence.
         ldx #10
         lda ControlMode
         cmp #2
@@ -174,7 +174,7 @@ NextFrame
         TIMER_WAIT
         lda #0
         sta VBLANK
-        ; The original Tiny Text kernel uses a 192-line visible interval.
+        ; The Text Adventure 2600 kernel uses a 192-line visible interval.
         ; Together with 3 VSYNC, 37 VBLANK and 30 overscan lines this keeps the
         ; frame at exactly 262 lines and restores blank space above and below.
         TIMER_SETUP 192
@@ -203,7 +203,7 @@ NextFrame
 
 ; ---------------------------------------------------------------------------
 ; Display setup and kernel. These routines retain the timing and RAM bitmap
-; construction of the user's working tiny_text.asm reference.
+; construction of the stable Text Adventure 2600 renderer.
 ; ---------------------------------------------------------------------------
 
 SetupBackground subroutine
@@ -1188,7 +1188,7 @@ SplashGameLanding
 
         if BANK_ROLE = 2
         org $F500
-        include "tiny_font.inc"
+        include "text_adventure_font.inc"
           if BANK_ID = 2
             include "data\bank2_text.inc"
           endif

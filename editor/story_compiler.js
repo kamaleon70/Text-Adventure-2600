@@ -123,6 +123,17 @@
     if (!Number.isInteger(delay) || delay < 0 || delay > 255) fail("Splash delay must be between 0 and 255 frames");
     const splash = { enabled: splashEnabled, filename: String(splashRaw.filename || "").split(/[\\/]/).pop(), source: splashSource, delay_frames: delay, background_color: 0, metadata: splashParsed ? { kernel_lines: splashParsed.kernel_lines, line_count: splashParsed.line_count, line_height: splashParsed.line_height } : null };
     const appearance = validateAppearance(raw.appearance);
+    const appearancePresets = raw.appearance_presets || [];
+    if (!Array.isArray(appearancePresets) || appearancePresets.length > 32) fail("appearance_presets must contain at most 32 entries");
+    const presetIds = new Set();
+    const cleanAppearancePresets = appearancePresets.map((preset, index) => {
+      if (!preset || typeof preset !== "object" || !ID_PATTERN.test(preset.id || "")) fail(`appearance preset ${index + 1} has an invalid ID`);
+      if (presetIds.has(preset.id)) fail(`Duplicate appearance preset ID: ${preset.id}`);
+      presetIds.add(preset.id);
+      const name = String(preset.name || "").trim();
+      if (!name || name.length > 48) fail(`${preset.id}: preset name must contain 1-48 characters`);
+      return { id: preset.id, name, appearance: validateAppearance(preset.appearance) };
+    });
 
     const flags = raw.flags || [];
     if (!Array.isArray(flags) || flags.length > 64) fail("Project flags must contain at most 64 entries");
@@ -175,7 +186,9 @@
       if (!localIds.has(entry)) fail(`${room.id}: entry_scene must name a scene in this room`);
       const exits = {}; for (const direction of MOVEMENTS) exits[direction] = target(room.exits?.[direction], `${room.id}: ${direction} exit`);
       const variants = (room.variants || []).map((variant, index) => ({ scene: variant.scene, when_all: checkedFlags(variant.when_all, `${room.id}: variant ${index + 1} when_all`, flagIds), when_clear: checkedFlags(variant.when_clear, `${room.id}: variant ${index + 1} when_clear`, flagIds) }));
-      return { id: room.id, name: String(room.name || room.id).trim(), position: { x: Math.max(20, Number(room.position?.x) || 80), y: Math.max(20, Number(room.position?.y) || 80) }, entry_scene: entry, exits, scenes, variants };
+      const appearancePreset = target(room.appearance_preset, `${room.id}: appearance_preset`);
+      if (appearancePreset && !presetIds.has(appearancePreset)) fail(`${room.id}: appearance_preset references missing preset '${appearancePreset}'`);
+      return { id: room.id, name: String(room.name || room.id).trim(), position: { x: Math.max(20, Number(room.position?.x) || 80), y: Math.max(20, Number(room.position?.y) || 80) }, appearance_preset: appearancePreset, appearance_overrides: validateAppearanceOverrides(room.appearance_overrides, room.id), entry_scene: entry, exits, scenes, variants };
     });
     if (sceneCount > STORY_BANKS.length * MAX_PAGES_PER_BANK) fail(`The 32K cartridge supports at most ${STORY_BANKS.length * MAX_PAGES_PER_BANK} scenes`);
     if (!roomIds.has(raw.start_room)) fail("start_room must name an existing room");
@@ -190,7 +203,7 @@
         for (const action of scene.context_actions) for (const id of [action.requires_carried, action.requires_here, action.effects.take_object, action.effects.remove_object]) if (id && !objectIds.has(id)) fail(`${scene.id}: contextual action references missing object '${id}'`);
       }
     }
-    return { version: 2, title, start_room: raw.start_room, appearance, splash, flags: cleanFlags, objects: cleanObjects, rooms };
+    return { version: 2, title, start_room: raw.start_room, appearance, appearance_presets: cleanAppearancePresets, splash, flags: cleanFlags, objects: cleanObjects, rooms };
   }
 
   const records = (project) => project.rooms.flatMap((room) => room.scenes.map((scene) => [room, scene]));
@@ -257,7 +270,8 @@
     const lines = [`; GENERATED text records - F4 BANK ${bank}`, "        org $F700"];
     const pages = bankScenes(project, bank);
     pages.forEach(([room, scene], index) => { if (index % 2 === 0) lines.push("        align $100"); lines.push(`; ${room.id} / ${scene.id} - ${scene.name}`, `Page${index}Text`, ...scene.text.map((row) => `        dc.b "${row.padEnd(ROW_WIDTH).replaceAll(" ", "[")}"`)); });
-    const effective = pages.map(([, scene]) => ({ ...project.appearance, ...scene.appearance_overrides }));
+    const presets = new Map(project.appearance_presets.map((preset) => [preset.id, preset.appearance]));
+    const effective = pages.map(([room, scene]) => ({ ...project.appearance, ...(presets.get(room.appearance_preset) || {}), ...room.appearance_overrides, ...scene.appearance_overrides }));
     while (effective.length < MAX_PAGES_PER_BANK) effective.push(project.appearance);
     const emit = (label, values) => {
       lines.push(label);

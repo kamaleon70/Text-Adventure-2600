@@ -1,4 +1,4 @@
-"""Loopback-only web editor for the Atari 2600 tiny text adventure."""
+"""Loopback-only web editor for Text Adventure 2600."""
 
 from __future__ import annotations
 
@@ -312,14 +312,14 @@ def serve(
 ) -> None:
     load_project(project_path)
     runner = ActionRunner(project_path, stella_path)
-    handler = type("TinyTextEditorHandler", (EditorHandler,), {
+    handler = type("TextAdventure2600EditorHandler", (EditorHandler,), {
         "project_path": project_path,
         "editor_token": secrets.token_urlsafe(24),
         "action_runner": runner,
     })
     server = ThreadingHTTPServer((host, port), handler)
     url = f"http://{host}:{server.server_port}/"
-    print(f"Tiny Text Adventure editor: {url}")
+    print(f"Text Adventure 2600 editor: {url}")
     print("Loopback-only local editor; press Ctrl+C to stop.")
     if open_browser:
         threading.Timer(0.35, lambda: webbrowser.open(url)).start()

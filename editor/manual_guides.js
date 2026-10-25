@@ -5,7 +5,7 @@ window.TextAdventureManualGuides = {
     kicker: "Recommended workflow",
     title: "Start your adventure",
     html: `<h3>1. Plan the smallest playable route</h3>
-      <p>Begin with a start room, two or three connected locations, and a simple objective. Give every room a short name and a stable ID. Build and test this small route before expanding the world.</p>
+      <p>Select <strong>New project</strong> to create a clean one-room adventure, or load an existing configuration. Begin with two or three connected locations and a simple objective. Give every room a short, unique name and build this small route before expanding the world.</p>
       <h3>2. Write and connect the story</h3>
       <p>Use <strong>Rooms &amp; scenes</strong> to write each ten-line display. Configure the room exits first, then add continuation scenes with NEXT only where one display is not enough.</p>
       <h3>3. Add state gradually</h3>
@@ -42,8 +42,8 @@ window.TextAdventureManualGuides = {
       <p>A room owns its four normal movement exits and one primary scene. Moving into that room resolves its conditional variants and displays either the first matching variant or the primary scene.</p>
       <h3>Display scenes</h3>
       <p>A scene is one complete Atari text display: ten authored rows of up to 12 characters. Text is converted to uppercase. The eleventh row belongs to the engine and displays movement, actions, inventory return, or restart.</p>
-      <h3>IDs, names, and order</h3>
-      <p>IDs are internal references. Keep them short and descriptive, start them with a letter or underscore, and use only letters, numbers, and underscores. Names are editor labels and can be more readable. Earlier/Later changes cartridge allocation order but does not create a gameplay link.</p>
+      <h3>Names and order</h3>
+      <p>The editor creates stable internal IDs automatically. Room names must be unique, while scene names must be unique within their room. Earlier/Later changes cartridge allocation order but does not create a gameplay link.</p>
       <h3>Primary and start choices</h3>
       <p><strong>Make primary</strong> selects the room's default description. <strong>Set start room</strong> selects the logical room used after power-on and Restart. Use NEXT links—not authoring order—to connect multiple pages.</p>`,
   },
@@ -132,8 +132,12 @@ window.TextAdventureManualGuides = {
     title: "Colours and border",
     html: `<h3>Global defaults</h3>
       <p>The Appearance tab controls the normal story background, side-panel colour, story text, action-row text, side-panel style, and optional action-row background. The palette uses even Atari colour bytes.</p>
+      <h3>Reusable appearance presets</h3>
+      <p>Create named presets such as <strong>Outdoor</strong>, <strong>Castle</strong>, or <strong>Dungeon</strong> in the Appearance tab. Select a preset in a room to apply it to every scene in that room. Editing the preset later updates every room linked to it.</p>
+      <p>The room editor can also copy the effective appearance of another room, or promote the current scene's appearance to the entire room.</p>
       <h3>Per-scene overrides</h3>
-      <p>Open a scene under <strong>Rooms &amp; scenes</strong>. Enable only the appearance settings that should differ. Unchecked fields remain linked to the global values, so later global changes continue to affect them. <strong>Reset to global defaults</strong> removes all overrides from that scene.</p>
+      <p>Open a scene under <strong>Rooms &amp; scenes</strong>. Enable only the appearance settings that should differ. Unchecked fields inherit the room preset or room appearance, then the global defaults. <strong>Reset to room appearance</strong> removes all overrides from that scene. You can also copy the complete appearance of another scene.</p>
+      <p>The inheritance order is <strong>Global default → Room appearance → Scene override</strong>. Selecting a room appearance clears that room's previous scene overrides so the theme applies immediately; scenes can then be customized again. Version 0.3 configuration files remain compatible and use their existing global and per-scene colours until you choose a room appearance.</p>
       <h3>Action row and border</h3>
       <p>The action background affects the centre behind the final row while the side panels remain visible. Striped panels preserve the original appearance; solid panels fill the same side areas.</p>
       <p>The browser palette is an NTSC approximation. Always inspect the compiled cartridge in an emulator or on the intended television and hardware.</p>`,

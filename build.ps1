@@ -24,7 +24,7 @@ $storySources = @($bankIds | ForEach-Object { Join-Path $sourceDir "data\bank$($
 $pageTextSources = @(2..7 | ForEach-Object { Join-Path $sourceDir "data\bank$($_)_text.inc" })
 $textSources = @((Join-Path $sourceDir "engine.asm")) + $pageTextSources
 
-# The tiny-text builder always reads twelve native character bytes. Catching
+# The Text Adventure 2600 builder always reads twelve native character bytes. Catching
 # malformed rows here prevents it from reading into the following row/table.
 foreach ($textSource in $textSources) {
     $lineNumber = 0
