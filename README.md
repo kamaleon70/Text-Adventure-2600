@@ -127,11 +127,19 @@ rows, and a 12-byte action-line buffer. `$DF-$FF` remains available for the
 - `editor/story_compiler.js` — matching browser-side generator
 - `build.ps1` — validates, assembles, and joins the eight banks
 
-## Licence and generated games
+## License and generated games
 
 The editor source is released under AGPL-3.0. A separate ROM output exception
 allows generated games to be freeware, commercial, open-source, or
-closed-source without publishing their project files. A distributed game only
-needs to include the required Text Adventure 2600 credit and itch.io link in a
-reasonable public-facing place. See `LICENSING.md` and
-`ROM_OUTPUT_EXCEPTION.md` for the exact terms.
+closed-source without publishing their project files.
+
+**Text Adventure 2600** may be used free of charge to create and distribute
+Atari 2600 text-adventure ROMs, including free and commercial games.
+
+Games created with the engine must include the following credit in their
+documentation, download page, or other accompanying material:
+
+> *Created with Text Adventure 2600 by kamaleon70*<br>
+> [*https://kamaleon70.itch.io/text-adventures-2600*](https://kamaleon70.itch.io/text-adventures-2600)
+
+See `LICENSING.md` and `ROM_OUTPUT_EXCEPTION.md` for the exact terms.

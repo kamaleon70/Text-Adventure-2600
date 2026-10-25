@@ -16,7 +16,7 @@ story, artwork, or ROM source.
 
 The one requirement is a reasonable public credit accompanying the game:
 
-> Created with Text Adventure 2600 by kamaleon70  
+> Created with Text Adventure 2600 by kamaleon70<br>
 > https://kamaleon70.itch.io/text-adventures-2600
 
 The credit may appear in a store page, download page, README, manual, package,

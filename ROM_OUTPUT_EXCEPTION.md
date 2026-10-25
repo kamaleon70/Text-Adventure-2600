@@ -18,7 +18,7 @@ When a Generated ROM is made available to other people, it must be accompanied
 in at least one reasonable public-facing place by this credit and link (minor
 formatting changes are allowed):
 
-> Created with Text Adventure 2600 by kamaleon70  
+> Created with Text Adventure 2600 by kamaleon70<br>
 > https://kamaleon70.itch.io/text-adventures-2600
 
 The credit may be placed on the game's store or download page, in a README or
