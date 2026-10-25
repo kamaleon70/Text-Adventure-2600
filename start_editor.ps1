@@ -54,11 +54,34 @@ function Send-HttpResponse {
     $Stream.Flush()
 }
 
-$listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
-$url = "http://127.0.0.1:$Port/"
+$listener = $null
+$boundPort = 0
+$lastSocketError = $null
+$maximumPort = [Math]::Min(65535, $Port + 20)
+for ($candidatePort = $Port; $candidatePort -le $maximumPort; $candidatePort++) {
+    $candidateListener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $candidatePort)
+    try {
+        $candidateListener.Start()
+        $listener = $candidateListener
+        $boundPort = $candidatePort
+        break
+    }
+    catch [Net.Sockets.SocketException] {
+        $lastSocketError = $_.Exception
+        $candidateListener.Stop()
+    }
+}
+
+if ($null -eq $listener) {
+    throw "Could not start the local editor server on ports $Port-$maximumPort. Last socket error: $($lastSocketError.Message)"
+}
+
+$url = "http://127.0.0.1:$boundPort/"
 
 try {
-    $listener.Start()
+    if ($boundPort -ne $Port) {
+        Write-Warning "Port $Port was unavailable; using port $boundPort instead."
+    }
     Write-Host "Text Adventure 2600 editor: $url"
     Write-Host "Press Ctrl+C to stop the local server."
     if (-not $NoBrowser) {
@@ -130,5 +153,5 @@ try {
     }
 }
 finally {
-    $listener.Stop()
+    if ($null -ne $listener) { $listener.Stop() }
 }

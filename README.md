@@ -16,7 +16,10 @@ Start the local editor from the project root:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start_editor.ps1
 ```
 
-It opens `http://127.0.0.1:8765/`. The editor provides:
+It normally opens `http://127.0.0.1:8765/`. If that port is unavailable, the
+launcher automatically uses the next available port and opens the correct URL.
+The PowerShell window always displays the address in use. To request a different
+starting port, add—for example—`-Port 9000`. The editor provides:
 
 - a draggable logical-room map with primary and continuation scenes;
 - room exits, per-scene overrides, and same-room NEXT links;
