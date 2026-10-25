@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101b18">
+  <title>Text Adventure 2600 by kamaleon70</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand-lockup">
+      <img class="brand-logo" src="logomauro.png" alt="kamaleon70 logo" width="100" height="100">
+      <div class="brand-copy">
+        <p class="eyebrow brand-byline">by kamaleon70 <span class="editor-version">Version 0.3 beta</span></p>
+        <h1>Text Adventure <span>2600</span></h1>
+        <p class="subtitle">Shape rooms, continuation scenes, actions, and twelve-character text.</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="save-state" class="badge saved">Saved</span>
+      <button id="load-project" class="button ghost" type="button">Load config</button>
+      <input id="load-project-file" class="hidden" type="file" accept=".json,application/json">
+      <button id="download-project" class="button primary" type="button">Save config</button>
+      <button id="reload" class="button ghost local-editor-action" type="button">Reload</button>
+      <button id="save" class="button primary local-editor-action" type="button">Save project</button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Editor sections">
+    <button class="tab active" data-tab="world" type="button">World map</button>
+    <button class="tab" data-tab="page" type="button">Rooms &amp; scenes</button>
+    <button class="tab" data-tab="flags" type="button">Flags &amp; variants</button>
+    <button class="tab" data-tab="objects" type="button">Objects</button>
+    <button class="tab" data-tab="play" type="button">Playtest</button>
+    <button class="tab" data-tab="appearance" type="button">Appearance</button>
+    <button class="tab" data-tab="splash" type="button">Splash screen</button>
+    <button class="tab" data-tab="build" type="button">Build &amp; run</button>
+    <button class="tab" data-tab="debug" type="button">Debug</button>
+    <button class="tab" data-tab="manual" type="button">User manual</button>
+  </nav>
+
+  <main>
+    <section id="loading" class="state-card">Loading cartridge data...</section>
+    <section id="fatal" class="state-card error hidden" role="alert"></section>
+
+    <div id="app" class="hidden">
+      <section class="panel active" data-panel="world">
+        <div class="page-heading">
+          <div><p class="kicker">Navigation graph</p><h2>World map</h2><p>Drag rooms to organize the map. The workspace grows automatically; use its scrollbars to reach distant rooms.</p></div>
+          <button id="add-room" class="button secondary" type="button">Add room</button>
+        </div>
+        <div class="legend"><span><i class="dot local"></i> room connection</span><span>Labels show the movement/action</span></div>
+        <div id="world-canvas" class="world-canvas">
+          <div id="world-surface" class="world-surface">
+            <svg id="world-links" aria-hidden="true"></svg>
+            <div id="world-nodes"></div>
+          </div>
+        </div>
+        <div id="world-space-summary" class="world-space-summary"></div>
+      </section>
+
+      <section class="panel" data-panel="page">
+        <div class="editor-layout">
+          <aside class="page-sidebar">
+            <div class="sidebar-title"><div><p class="kicker">Logical locations</p><h2>Rooms</h2></div><button id="sidebar-add-room" class="icon-button" title="Add room" type="button">+</button></div>
+            <div id="page-list" class="page-list"></div>
+          </aside>
+          <div class="page-workspace">
+            <div id="page-empty" class="state-card">Select a scene from a room in the list.</div>
+            <div id="page-form" class="hidden">
+              <div class="page-heading compact">
+                <div><p class="kicker">Room scene · ten story rows + one action row</p><h2 id="page-heading"></h2></div>
+                <div class="mini-actions"><button id="set-start" class="button secondary" type="button">Set start room</button><button id="set-entry" class="button secondary" type="button">Make primary</button><button id="add-scene" class="button ghost" type="button">Add scene</button><button id="move-up" class="button ghost" type="button">Earlier</button><button id="move-down" class="button ghost" type="button">Later</button><button id="delete-scene" class="button danger" type="button">Delete scene</button><button id="delete-room" class="button danger" type="button">Delete room</button></div>
+              </div>
+              <article class="card identity-card">
+                <div class="section-heading"><div><p class="kicker">Shared location</p><h3>Room</h3></div><span>Exits apply to every scene by default</span></div>
+                <div class="form-grid">
+                  <label>Room ID<input id="room-id" maxlength="32" pattern="[A-Za-z_][A-Za-z0-9_]*"></label>
+                  <label>Room name<input id="room-name" maxlength="48"></label>
+                  <label>Map position<span class="coordinate-pair"><input id="room-x" type="number" min="20" step="1"><input id="room-y" type="number" min="20" step="1"></span></label>
+                </div>
+                <div id="room-exits" class="room-exits"></div>
+              </article>
+              <div class="form-grid scene-identity">
+                <label>Scene ID<input id="scene-id" maxlength="32" pattern="[A-Za-z_][A-Za-z0-9_]*"></label>
+                <label>Scene name<input id="scene-name" maxlength="48"></label>
+                <label>Role<input id="scene-role" readonly></label>
+                <label class="toggle-row"><input id="scene-ending" type="checkbox"> Ending scene — only Restart is available</label>
+              </div>
+              <div class="editing-columns">
+                <article class="card">
+                  <div class="section-heading"><div><p class="kicker">Atari display</p><h3>Story text</h3></div><span id="page-text-budget">12 characters each</span></div>
+                  <div id="text-rows" class="text-rows"></div>
+                  <div class="fixed-action-preview"><span>11</span><code id="editor-action-row">ACT: LOOK</code><em>engine-owned</em></div>
+                </article>
+                <article class="card">
+                  <div class="section-heading"><div><p class="kicker">Continuation</p><h3>Scene links</h3></div><span>Room exits are inherited automatically</span></div>
+                  <div id="scene-links" class="action-links"></div>
+                  <p id="continuation-warning" class="help warning hidden"></p>
+                  <p class="help"><strong>NEXT</strong> selects another scene in this room. Open the optional overrides only when this particular scene needs different movement from the room above.</p>
+                </article>
+              </div>
+              <article class="card scene-appearance-card">
+                <div class="section-heading"><div><p class="kicker">Optional scene overrides</p><h3>Scene colours and border</h3></div><div class="mini-actions"><span id="scene-appearance-count">0 custom settings</span><button id="scene-appearance-reset" class="button ghost" type="button">Reset to global defaults</button></div></div>
+                <p class="help">Unchecked settings inherit the global choices from the Appearance tab. Custom settings apply only to this scene.</p>
+                <div id="scene-appearance-fields" class="scene-appearance-fields"></div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="flags">
+        <div class="page-heading"><div><p class="kicker">Persistent story state</p><h2>Flags and room variants</h2><p>Flags occupy eight bytes of Atari RAM. Ordered room rules select a different description when their conditions match.</p></div></div>
+        <div class="flags-layout">
+          <article class="card">
+            <div class="section-heading"><div><p class="kicker">Up to 64 bits</p><h3>Named flags</h3></div><button id="add-flag" class="button secondary" type="button">Add flag</button></div>
+            <div id="flag-list" class="flag-list"></div>
+          </article>
+          <article class="card">
+            <div class="section-heading"><div><p class="kicker">First matching rule wins</p><h3>Room descriptions</h3></div><button id="add-variant" class="button secondary" type="button">Add variant</button></div>
+            <label>Room<select id="variant-room"></select></label>
+            <div id="variant-list" class="variant-list"></div>
+          </article>
+        </div>
+        <article class="card effect-card">
+          <div class="section-heading"><div><p class="kicker">Apply before following a link</p><h3>Scene action effects</h3></div><span>SET, CLEAR, or TOGGLE flags</span></div>
+          <div class="form-grid"><label>Scene<select id="effect-scene"></select></label><label>Action<select id="effect-action"></select></label></div>
+          <div id="effect-fields" class="effect-fields"></div>
+          <p class="help">These effects apply to the built-in LOOK, movement, and NEXT actions.</p>
+        </article>
+        <article class="card effect-card">
+          <div class="section-heading"><div><p class="kicker">Only offered when requirements match</p><h3>Contextual actions</h3></div><button id="add-context-action" class="button secondary" type="button">Add action</button></div>
+          <label>Scene<select id="context-scene"></select></label>
+          <div id="context-action-list" class="context-action-list"></div>
+          <p class="help">Labels use the complete twelve-character action row. Actions can test flags or object locations, change flags, take an object, or remove a consumed object.</p>
+        </article>
+      </section>
+
+      <section class="panel" data-panel="objects">
+        <div class="page-heading"><div><p class="kicker">Portable story items</p><h2>Objects and inventory</h2><p>Each object uses one byte of Atari RAM. Its location is a room, the player's inventory, or removed from play.</p></div><button id="add-object" class="button secondary" type="button">Add object</button></div>
+        <article class="card">
+          <div class="section-heading"><div><p class="kicker">Up to eight objects</p><h3>Object definitions</h3></div><span id="object-ram">0 / 8 RAM bytes</span></div>
+          <div id="object-list" class="object-list"></div>
+        </article>
+      </section>
+
+      <section class="panel" data-panel="play">
+        <div class="page-heading"><div><p class="kicker">Browser simulation</p><h2>Playtest navigation</h2><p>Movement enters a room's primary scene; NEXT stays inside the current room.</p></div><button id="play-reset" class="button ghost" type="button">Reset to start room</button></div>
+        <div class="play-layout">
+          <div class="television"><div class="screen"><div id="play-text" class="screen-text"></div><div id="play-action" class="screen-action"></div></div></div>
+          <div><p class="kicker">Choose an action</p><h3 id="play-page-name"></h3><div id="play-actions" class="play-actions"></div><div id="play-result" class="play-result">Select an action to follow its link.</div><div class="play-flag-debug"><p class="kicker">Flag debugger</p><div id="play-flags"></div><p class="kicker object-debug-title">Object debugger</p><div id="play-objects"></div></div></div>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="appearance">
+        <div class="page-heading"><div><p class="kicker">Cartridge display</p><h2>Colours and border</h2><p>Choose Atari NTSC colours for the story screen. The preview is approximate; Javatari or Stella remains the final reference.</p></div></div>
+        <div class="appearance-layout">
+          <article class="card appearance-controls">
+            <div class="section-heading"><div><p class="kicker">Main screen</p><h3>Story colours</h3></div><span>128-colour Atari palette</span></div>
+            <div class="appearance-fields">
+              <label>Text background<span class="colour-control"><i data-colour-swatch="background_color"></i><select id="appearance-background"></select></span></label>
+              <label>Border colour<span class="colour-control"><i data-colour-swatch="border_color"></i><select id="appearance-border"></select></span></label>
+              <label>Story text<span class="colour-control"><i data-colour-swatch="text_color"></i><select id="appearance-text"></select></span></label>
+              <label>Action-row text<span class="colour-control"><i data-colour-swatch="action_text_color"></i><select id="appearance-action-text"></select></span></label>
+              <label>Side-panel style<select id="appearance-border-style"><option value="striped">Striped side panels</option><option value="solid">Solid side panels</option></select></label>
+            </div>
+            <div class="action-background-controls">
+              <label class="toggle-row"><input id="appearance-action-background-enabled" type="checkbox"> Use a coloured background behind the action row</label>
+              <label id="appearance-action-background-field">Action-row background<span class="colour-control"><i data-colour-swatch="action_background_color"></i><select id="appearance-action-background"></select></span></label>
+            </div>
+            <p class="help">The action-row background changes only the centre area behind the final line. The coloured side panels remain visible.</p>
+          </article>
+          <article class="card appearance-preview-card">
+            <div class="section-heading"><div><p class="kicker">Approximate NTSC preview</p><h3>Game screen</h3></div><span id="appearance-code-summary"></span></div>
+            <div id="appearance-preview" class="appearance-preview">
+              <div class="appearance-preview-body"><i class="appearance-rail left"></i><div class="appearance-preview-text"><span>ROOM 1 DOCK</span><span>COLD STARS.</span><span>YOUR SHIP</span><span>IS SILENT.</span><span>A RED LAMP</span><span>STILL BURNS.</span><span>EXITS: N.E</span><span></span><span></span><span></span><strong>MOVE: NSEW</strong></div><i class="appearance-rail right"></i></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="splash">
+        <div class="page-heading"><div><p class="kicker">Optional opening artwork</p><h2>Colour splash screen</h2><p>Import a compatible playfield ASM export. The splash occupies physical bank 0 and the story starts after a fresh Fire press.</p></div></div>
+        <div class="splash-grid">
+          <article class="card">
+            <div class="section-heading"><div><p class="kicker">Artwork source</p><h3>Upload ASM</h3></div><span id="splash-detected">No file loaded</span></div>
+            <label class="toggle-row"><input id="splash-enabled" type="checkbox"> Use splash screen in ROM</label>
+            <label class="file-drop">Compatible .asm file<input id="splash-file" type="file" accept=".asm,text/plain"></label>
+            <div class="mini-actions"><button id="splash-clear" class="button danger" type="button">Remove artwork</button></div>
+            <p id="splash-file-status" class="help">Upload the ASM generated by the third-party playfield tool.</p>
+          </article>
+          <article class="card splash-requirements">
+            <p class="kicker">Exporter settings</p><h3>Required format</h3>
+            <dl><div><dt>Render Type</dt><dd>ASM Asymmetrical (Mirrored) color</dd></div><div><dt>Kernel</dt><dd>2 Scanline Kernel</dd></div><div><dt>Height</dt><dd>1–90 rows (up to 180 scanlines)</dd></div></dl>
+            <label>Minimum display time (frames)<input id="splash-delay" type="number" min="0" max="255" value="120"></label>
+            <div class="fixed-background"><span>Required BG colour</span><strong><i></i>$00 · black</strong><small>For this splash format, select black (<code>$00</code>) as BG in Atari Background Builder.</small></div>
+            <p class="help">120 frames is about two seconds on NTSC. After the delay, Fire must first be released and then pressed. Uploaded instructions are not executed; the editor extracts only the six playfield tables and colour table.</p>
+          </article>
+        </div>
+        <article class="card splash-preview-card">
+          <div class="section-heading"><div><p class="kicker">Decoded cartridge artwork</p><h3>Preview</h3></div><span>40 pixels · NTSC colour approximation</span></div>
+          <div class="splash-preview-frame"><canvas id="splash-preview" width="640" height="384" aria-label="Splash artwork preview"></canvas><p id="splash-preview-empty">Upload compatible ASM to preview it here.</p></div>
+        </article>
+        <article id="splash-impact" class="card splash-impact"></article>
+      </section>
+
+      <section class="panel" data-panel="build">
+        <div class="page-heading"><div><p class="kicker">Browser toolchain</p><h2>Build and test</h2><p>Compile all eight banks with dasmjs. Download the 32K F4 ROM or run it directly in Javatari.</p></div></div>
+        <div class="build-grid">
+          <article class="card build-summary"><p class="kicker">Current project</p><h3 id="project-title"></h3><div id="project-metrics" class="metrics"></div><p class="metric-note">A logical room needs at least one scene. Characters used includes each scene's fixed text space; characters written counts only the text you entered.</p><p id="rom-meta" class="rom-meta"></p></article>
+          <article class="card"><p class="kicker">Actions</p><h3>Cartridge workflow</h3><div class="build-actions"><button id="build-download" class="button secondary browser-build-action" type="button">Build &amp; download</button><button id="build-javatari" class="button primary browser-build-action" type="button">Build &amp; run Javatari</button></div><p id="build-note" class="help">The browser compiler builds the current editor contents.</p></article>
+        </div>
+        <div class="build-runtime">
+          <article id="javatari-card" class="card emulator-card">
+            <div class="section-heading"><div><p class="kicker">Embedded emulator</p><h3>Javatari</h3></div><button id="close-javatari" class="button ghost" type="button">Stop</button></div>
+            <div class="javatari-stage"><div id="javatari-host" class="javatari-host"><p class="emulator-placeholder">Choose <strong>Build &amp; run Javatari</strong> to start the cartridge.</p></div></div>
+          </article>
+          <article class="card console-card"><div class="console-heading"><strong>Build output</strong><span id="job-status" class="badge neutral">Idle</span></div><pre id="job-output">No build action has run in this editor session.</pre></article>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="debug">
+        <div class="page-heading"><div><p class="kicker">Cartridge internals</p><h2>Bank allocation</h2><p>Scenes are assigned automatically by room and scene order. This information is for debugging only.</p></div></div>
+        <div id="debug-banks" class="debug-banks"></div>
+      </section>
+
+      <section class="panel manual" data-panel="manual">
+        <div class="page-heading"><div><p class="kicker">Author's guide</p><h2>User manual</h2><p>Everything needed to create, test, save, and build a text adventure inside this browser editor.</p></div></div>
+        <div class="manual-layout">
+          <article class="card manual-card" data-manual-guide="workflow">
+            <p class="kicker">Recommended workflow</p><h3>Start your adventure</h3>
+            <ol><li>Use <strong>World map</strong> to create the locations in the game.</li><li>Open <strong>Rooms &amp; scenes</strong> to write text and connect locations.</li><li>Add state in <strong>Flags &amp; variants</strong> and portable items in <strong>Objects</strong>.</li><li>Exercise every route in <strong>Playtest</strong>.</li><li>Use <strong>Save config</strong> regularly, then build the finished cartridge from <strong>Build &amp; run</strong>.</li></ol>
+            <p>The editor keeps a browser-local draft after changes. This protects against an accidental refresh, but browser data can be cleared, so it is not a replacement for downloaded backups.</p>
+          </article>
+          <article class="card manual-card" data-manual-guide="saving">
+            <p class="kicker">Your project file</p><h3>Save and restore</h3>
+            <ul><li><strong>Save config</strong> downloads the complete editable adventure: rooms, scenes, text, links, flags, objects, contextual actions, and splash settings.</li><li><strong>Load config</strong> replaces the current editor contents with a previously saved configuration.</li><li>Save numbered backups at important milestones and keep them somewhere outside the browser.</li><li>Loading a configuration does not load a ROM; use the Build tab afterward to create a new cartridge.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="map">
+            <p class="kicker">World structure</p><h3>World map</h3>
+            <ul><li><strong>Add room</strong> creates a location with one primary scene.</li><li>Drag room cards to arrange the diagram. Position changes only the editor map; it does not change gameplay.</li><li>Lines show NORTH, EAST, SOUTH, and WEST connections configured for each room.</li><li>The star identifies the start room. Double-click a room to open its primary scene, or click it once to select it.</li><li>The 32K F4 layout supports up to 102 scenes and 12,240 fixed text characters.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="rooms">
+            <p class="kicker">Locations and text</p><h3>Rooms and scenes</h3>
+            <ul><li>A <strong>room</strong> is a logical location. Its four exits are shared by its scenes unless a scene explicitly overrides one.</li><li>A <strong>scene</strong> is one Atari text screen: ten rows of up to 12 characters. Text is converted to uppercase and the eleventh action row is controlled by the game engine.</li><li><strong>Set start room</strong> chooses where a new game begins. <strong>Make primary</strong> chooses which scene appears when the player enters that room.</li><li>IDs must be unique and start with a letter or underscore. Names are editor labels and may be more descriptive.</li><li><strong>Add scene</strong> creates another page inside the same room. Earlier/Later changes its authoring order.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="navigation">
+            <p class="kicker">Multiple pages</p><h3>NEXT and movement overrides</h3>
+            <ul><li><strong>NEXT</strong> links to another scene in the same room. Choose <strong>End continuation</strong> when there is no next page.</li><li>NEXT chains should finish rather than loop; the editor warns about continuation cycles.</li><li>Movement normally uses the room's exits. Open <strong>Optional movement overrides</strong> only when this particular scene needs a different destination or no exit.</li><li>LOOK returns to the room description currently selected by its variant rules.</li><li>Entering a room through movement always resolves its primary or conditional scene, not an arbitrary continuation page.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="endings">
+            <p class="kicker">Winning and losing</p><h3>Ending scenes</h3>
+            <ul><li>Write the congratulation, victory, game-over, or other ending message as an ordinary scene.</li><li>Enable <strong>Ending scene — only Restart is available</strong> for that scene. On the Atari, its action row becomes <strong>FIRE:RESTART</strong>; movement, inventory, NEXT, and contextual actions are disabled.</li><li>Pressing Fire restores the initial flags and object locations, then returns to the configured start room.</li><li>For a conditional ending, add the ending scene to a room and select it in a <strong>Room description</strong> variant. Set the required flags on that variant. When the player enters the room with those conditions satisfied, the ending scene is shown.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="flags">
+            <p class="kicker">Persistent story state</p><h3>Flags and room variants</h3>
+            <ul><li>A flag records a yes/no fact such as <code>door_open</code> or <code>power_on</code>. Up to 64 flags are available.</li><li><strong>Initially set</strong> controls the flag's value when a new game starts.</li><li>A room variant redirects the room description to another scene when all selected <strong>must be set</strong> flags are on and all <strong>must be clear</strong> flags are off.</li><li>Variant rules are checked from top to bottom; the first match wins. If none matches, the primary scene is used.</li><li>For multi-select fields, use Ctrl-click on Windows/Linux or Command-click on macOS to select more than one flag.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="effects">
+            <p class="kicker">Built-in actions</p><h3>Scene action effects</h3>
+            <p>Select a scene and one built-in action: LOOK, NORTH, EAST, SOUTH, WEST, or NEXT. Then choose flags to modify before that action follows its link.</p>
+            <ul><li><strong>SET</strong> turns a flag on.</li><li><strong>CLEAR</strong> turns a flag off.</li><li><strong>TOGGLE</strong> reverses its current value.</li><li>A flag can have only one operation for the same action. Effects still run when an action has no destination.</li></ul>
+            <p>Example: NORTH can SET <code>door_seen</code>; a later room variant can display a new description when that flag is set.</p>
+          </article>
+          <article class="card manual-card" data-manual-guide="objects">
+            <p class="kicker">Inventory</p><h3>Objects</h3>
+            <ul><li>Up to eight objects are supported; each consumes one byte of Atari RAM.</li><li><strong>Object ID</strong> is the unique internal name. <strong>Inventory name</strong> is the uppercase label shown to the player and is limited to 12 characters.</li><li><strong>Initial location</strong> can be a room, <strong>Carried initially</strong>, or <strong>Removed initially</strong>.</li><li>An object in a room can satisfy a contextual action's <strong>Must be here</strong> requirement. A carried object can satisfy <strong>Must be carried</strong>.</li><li>An object cannot be deleted while a contextual action still refers to it.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="contextual">
+            <p class="kicker">Custom verbs</p><h3>Contextual actions</h3>
+            <ul><li>Choose a scene and click <strong>Add action</strong>. Its cartridge label is the verb shown on the Atari action row, up to 12 characters.</li><li><strong>Require set/clear</strong>, <strong>Must be carried</strong>, and <strong>Must be here</strong> determine when the action is offered.</li><li>The action can SET, CLEAR, or TOGGLE flags, <strong>Take object</strong> into inventory, and/or <strong>Remove object</strong> from play.</li><li>After the action runs, the current room's variant rules are evaluated again, allowing the displayed description to change immediately.</li></ul>
+            <p>Example: TAKE KEY requires the key to be here and takes it. UNLOCK requires the key to be carried, sets <code>door_open</code>, and can remove the key if it is consumed.</p>
+          </article>
+          <article class="card manual-card" data-manual-guide="playtest">
+            <p class="kicker">Fast iteration</p><h3>Playtest</h3>
+            <ul><li>Use the action buttons to test movement, NEXT chains, inventory, and contextual actions without building a ROM.</li><li><strong>Reset to start room</strong> restores every flag and object to its configured initial state.</li><li>The Flag debugger can force flags on or off to inspect room variants.</li><li>The Object debugger can move an item among rooms, inventory, and removed state to test requirements.</li><li>Test both successful and unavailable actions, every room entry, and every conditional description before building.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="appearance">
+            <p class="kicker">Cartridge display</p><h3>Colours and border</h3>
+            <ul><li>Select separate Atari colours for the centre story background, side panels, story text, and action-row text.</li><li><strong>Striped side panels</strong> preserves the original look. <strong>Solid side panels</strong> fills both sides with the selected panel colour, as shown in the preview.</li><li>The optional action-row background changes only the centre area behind the final line; the side panels continue beside it.</li><li>These choices are the global defaults. In <strong>Rooms &amp; scenes</strong>, open a scene and enable only the settings that should be different for that scene. Unchecked settings continue to follow the global choices.</li><li><strong>Reset to global defaults</strong> removes every custom colour and border setting from that scene.</li><li>The browser preview approximates NTSC colours. Test the finished ROM in Javatari or Stella before publishing.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="splash">
+            <p class="kicker">Opening artwork</p><h3>Create a splash screen</h3>
+            <ol><li>Open <a href="https://alienbill.com/2600/atari-background-builder/" target="_blank" rel="noopener noreferrer">Atari Background Builder</a>.</li><li>Draw the 40-pixel-wide image and select black (<code>$00</code>) for the background colour.</li><li>Set <strong>Render Type</strong> to <strong>ASM Asymmetrical (Mirrored) color</strong>.</li><li>Set <strong>Kernel</strong> to <strong>2 Scanline Kernel</strong>.</li><li>Use a height from <strong>1 to 90 rows</strong>, which produces up to 180 scanlines.</li><li>Export/download the ASM, return to this editor's <strong>Splash screen</strong> tab, and upload that <code>.asm</code> file.</li><li>Enable <strong>Use splash screen in ROM</strong>, inspect the preview, and choose the minimum display time.</li></ol>
+            <p>120 frames is about two seconds on NTSC. After the delay, the player must release Fire and press it again. Physical bank 0 is always the startup bank, so enabling artwork does not reduce the 102-scene capacity.</p>
+          </article>
+          <article class="card manual-card" data-manual-guide="build">
+            <p class="kicker">Cartridge workflow</p><h3>Build and run</h3>
+            <ul><li><strong>Build &amp; download</strong> assembles the current editor contents and downloads a 32K F4 cartridge ROM.</li><li><strong>Build &amp; run Javatari</strong> assembles the same ROM and starts it in the embedded emulator.</li><li>The Build output reports progress or identifies invalid configuration and assembly errors.</li><li>The <strong>Debug</strong> tab shows the splash, shared logic, and automatic scene-bank allocation.</li></ul>
+          </article>
+          <article class="card manual-card" data-manual-guide="controls">
+            <p class="kicker">Atari controls</p><h3>Playing the cartridge</h3>
+            <ul><li>Joystick directions attempt NORTH, EAST, SOUTH, or WEST.</li><li>Fire enters action-selection mode.</li><li>Move the joystick while selecting to cycle through LOOK, NEXT, INVENTORY, and available contextual actions.</li><li>Press Fire to perform the selected action.</li><li>Release the joystick and Fire between inputs so each press is detected cleanly.</li></ul>
+          </article>
+        </div>
+        <article id="manual-detail" class="card manual-detail hidden" aria-live="polite">
+          <button class="button ghost manual-back" type="button">← Back to user manual</button>
+          <p id="manual-detail-kicker" class="kicker"></p>
+          <h2 id="manual-detail-title"></h2>
+          <div id="manual-detail-body"></div>
+          <button class="button ghost manual-back manual-back-bottom" type="button">← Back to user manual</button>
+        </article>
+      </section>
+    </div>
+  </main>
+
+  <script src="static_mode.js"></script>
+  <script src="manual_guides.js"></script>
+  <script src="story_compiler.js"></script>
+  <script src="app.js"></script>
+  <script src="source_bundle.js"></script>
+  <script src="dasm.js"></script>
+  <script src="browser_build.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Expandable world map smoke test</title>
+<pre id="result">RUNNING</pre>
+<iframe id="editor" src="../.itch-map-smoke/index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script>
+  const result = document.querySelector("#result");
+  const frame = document.querySelector("#editor");
+  frame.addEventListener("load", () => window.setTimeout(async () => {
+    try {
+      const document = frame.contentDocument;
+      document.querySelector('[data-tab="page"]').click();
+      for (const [id, value] of [["#room-x", 2400], ["#room-y", 1600]]) {
+        const input = document.querySelector(id);
+        input.value = value;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      document.querySelector('[data-tab="world"]').click();
+      const canvas = document.querySelector("#world-canvas");
+      const surface = document.querySelector("#world-surface");
+      const node = document.querySelector(".world-node");
+      canvas.scrollLeft = canvas.scrollWidth;
+      canvas.scrollTop = canvas.scrollHeight;
+      if (parseInt(node.style.left, 10) !== 2400 || parseInt(node.style.top, 10) !== 1600) throw new Error("room coordinates were clamped");
+      if (surface.offsetWidth < 2564 || surface.offsetHeight < 1676) throw new Error(`surface did not grow (${surface.offsetWidth}x${surface.offsetHeight})`);
+      if (canvas.scrollLeft <= 0 || canvas.scrollTop <= 0) throw new Error("map scrollbars did not move");
+      frame.style.width = "900px";
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+      frame.style.width = "1800px";
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+      const svg = document.querySelector("#world-links");
+      if (svg.hasAttribute("viewBox")) throw new Error(`SVG viewBox scales links independently: ${svg.getAttribute("viewBox")}`);
+      const centres = [...document.querySelectorAll(".world-node")].map((node) => [node.offsetLeft + node.offsetWidth / 2, node.offsetTop + node.offsetHeight / 2]);
+      for (const path of svg.querySelectorAll("path")) {
+        const values = path.getAttribute("d").match(/-?\d+(?:\.\d+)?/g).map(Number);
+        const endpoints = [[values[0], values[1]], [values.at(-2), values.at(-1)]];
+        for (const [x, y] of endpoints) {
+          if (!centres.some(([cx, cy]) => Math.abs(cx - x) < .01 && Math.abs(cy - y) < .01)) throw new Error(`link endpoint ${x},${y} does not match a room centre`);
+        }
+      }
+      result.textContent = `PASS: ${surface.offsetWidth}x${surface.offsetHeight} map; links remain attached after viewport resize`;
+    } catch (error) {
+      result.textContent = `FAIL: ${error.stack || error}`;
+    }
+  }, 1500));
+</script>

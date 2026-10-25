@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>itch.io scroll layout smoke test</title>
+<pre id="result">RUNNING</pre>
+<iframe id="editor" src="../.itch-scroll-smoke/index.html" style="width:1600px;height:900px;border:0"></iframe>
+<script>
+  const frame = document.querySelector("#editor");
+  frame.addEventListener("load", () => window.setTimeout(() => {
+    try {
+      const main = frame.contentDocument.querySelector("main");
+      const style = frame.contentWindow.getComputedStyle(main);
+      main.scrollTop = 500;
+      if (style.overflowY !== "scroll") throw new Error(`overflow-y is ${style.overflowY}`);
+      if (main.scrollHeight <= main.clientHeight) throw new Error(`content does not overflow (${main.scrollHeight}/${main.clientHeight})`);
+      if (main.scrollTop <= 0) throw new Error("main content did not scroll");
+      document.querySelector("#result").textContent = `PASS: main scrolled to ${main.scrollTop}; ${main.clientHeight}px viewport / ${main.scrollHeight}px content`;
+    } catch (error) {
+      document.querySelector("#result").textContent = `FAIL: ${error.stack || error}`;
+    }
+  }, 1500));
+</script>

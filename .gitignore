@@ -1,0 +1,10 @@
+bin/*.bin
+bin/*.lst
+bin/*.sym
+dist/
+state/
+nvram/
+stella.sqlite3
+.chrome-*/
+__pycache__/
+*.pyc

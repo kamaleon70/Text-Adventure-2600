@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Scene appearance editor smoke test</title>
+<pre id="result">RUNNING</pre>
+<iframe id="editor" src="../.itch-f4-smoke/index.html" style="width:1600px;height:1000px;border:0"></iframe>
+<script>
+  const result = document.querySelector("#result");
+  const frame = document.querySelector("#editor");
+  const fail = (message) => { result.textContent = `FAIL: ${message}`; fetch(`/__scene_appearance__/FAIL/${encodeURIComponent(message)}`).catch(() => {}); };
+  frame.addEventListener("load", () => {
+    const started = Date.now();
+    const waitForEditor = setInterval(() => {
+      const document = frame.contentDocument;
+      const build = document?.querySelector("#build-download");
+      if (!build || build.disabled) {
+        if (Date.now() - started > 15000) { clearInterval(waitForEditor); fail("editor did not become ready"); }
+        return;
+      }
+      clearInterval(waitForEditor);
+      document.querySelector('[data-tab="page"]').click();
+      const toggle = document.querySelector('[data-scene-appearance-toggle="background_color"]');
+      let select = document.querySelector('[data-scene-appearance="background_color"]');
+      if (!toggle || !select || !select.disabled) return fail("inherited scene controls are incorrect");
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+      select = document.querySelector('[data-scene-appearance="background_color"]');
+      if (select.disabled || document.querySelector("#scene-appearance-count").textContent !== "1 custom setting") return fail("custom scene control was not enabled");
+      select.value = "34";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      document.querySelector("#scene-appearance-reset").click();
+      select = document.querySelector('[data-scene-appearance="background_color"]');
+      if (!select.disabled || document.querySelector("#scene-appearance-count").textContent !== "0 custom settings") return fail("reset did not restore global inheritance");
+      const ending = document.querySelector("#scene-ending");
+      ending.checked = true;
+      ending.dispatchEvent(new Event("change", { bubbles: true }));
+      if (document.querySelector("#editor-action-row").textContent !== "FIRE:RESTART") return fail("ending action-row preview is incorrect");
+      document.querySelector('[data-tab="play"]').click();
+      if (document.querySelector("#play-action").textContent !== "FIRE:RESTART" || document.querySelectorAll("#play-actions button").length !== 1) return fail("playtest did not restrict the ending scene to Restart");
+      document.querySelector('[data-tab="manual"]').click();
+      const manualCards = document.querySelectorAll(".manual-card[data-manual-guide]");
+      const detailLinks = document.querySelectorAll(".manual-detail-link");
+      if (manualCards.length !== 15 || detailLinks.length !== manualCards.length) return fail("not every manual section has a detailed guide");
+      detailLinks[0].click();
+      if (document.querySelector("#manual-detail").classList.contains("hidden") || document.querySelector("#manual-detail-title").textContent !== "Start your adventure") return fail("detailed manual page did not open");
+      document.querySelector("#manual-detail .manual-back").click();
+      if (!document.querySelector("#manual-detail").classList.contains("hidden") || document.querySelector(".manual-layout").classList.contains("hidden")) return fail("manual Back button did not restore the index");
+      result.textContent = "PASS: scene controls and all detailed manual links work";
+      fetch("/__scene_appearance__/PASS").catch(() => {});
+    }, 100);
+  });
+</script>

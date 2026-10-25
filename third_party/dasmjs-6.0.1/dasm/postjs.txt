@@ -1,0 +1,2 @@
+DASM["FS"] = FS;
+DASM["getStatus"] = function() { return EXITSTATUS };

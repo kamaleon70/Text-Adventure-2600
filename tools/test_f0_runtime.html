@@ -1,0 +1,127 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>F4 Javatari runtime smoke test</title>
+<pre id="result">RUNNING</pre>
+<iframe id="editor" src="../.itch-f4-smoke/index.html" style="width:1600px;height:900px;border:0"></iframe>
+<script>
+  const result = document.querySelector("#result");
+  const frame = document.querySelector("#editor");
+  const fail = (message) => { result.textContent = `FAIL: ${message}`; fetch(`/__f4_runtime__/FAIL/${encodeURIComponent(message)}`).catch(() => {}); };
+  frame.addEventListener("load", () => {
+    const started = Date.now();
+    const waitForEditor = setInterval(() => {
+      const document = frame.contentDocument;
+      const button = document?.querySelector("#build-javatari");
+      if (!button || button.disabled) {
+        if (Date.now() - started > 15000) { clearInterval(waitForEditor); fail("editor did not become ready"); }
+        return;
+      }
+      clearInterval(waitForEditor);
+      // Exercise the cartridge tables with a complete per-scene override, not
+      // only the global appearance defaults.
+      document.querySelector('[data-tab="page"]').click();
+      const sceneAppearance = {
+        background_color: "34", border_color: "70", text_color: "62",
+        action_text_color: "30", action_background_color: "102",
+        border_style: "solid", action_background_enabled: "true",
+      };
+      for (const [field, value] of Object.entries(sceneAppearance)) {
+        const toggle = document.querySelector(`[data-scene-appearance-toggle="${field}"]`);
+        if (!toggle.checked) {
+          toggle.checked = true;
+          toggle.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        const select = document.querySelector(`[data-scene-appearance="${field}"]`);
+        select.value = value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      const ending = document.querySelector("#scene-ending");
+      ending.checked = true;
+      ending.dispatchEvent(new Event("change", { bubbles: true }));
+      document.querySelector('[data-tab="build"]').click();
+      const splash = document.querySelector("#splash-enabled");
+      splash.checked = true;
+      splash.dispatchEvent(new Event("change", { bubbles: true }));
+      const splashDelay = document.querySelector("#splash-delay");
+      splashDelay.value = "0";
+      splashDelay.dispatchEvent(new Event("change", { bubbles: true }));
+      button.click();
+      const buildStarted = Date.now();
+      const waitForCartridge = setInterval(() => {
+        try {
+          const emulator = document.querySelector("#javatari-host iframe");
+          const cartridge = emulator?.contentWindow?.Javatari?.room?.console?.getCartridgeSocket?.().inserted?.();
+          if (cartridge) {
+            clearInterval(waitForCartridge);
+            if (cartridge.format?.name !== "F4") return fail(`mapper is ${cartridge.format?.name || "unknown"}`);
+            if (cartridge.bytes?.length !== 32768) return fail(`ROM has ${cartridge.bytes?.length || 0} bytes`);
+            const rom = frame.contentWindow.TextAdventureBrowserBuild?.getLastRom?.();
+            for (let bank = 0; bank < 8; bank += 1) {
+              const reset = bank * 4096 + 0xfe0;
+              const expected = [0x2c, 0xf4, 0x1f, 0x4c, 0x00, 0xf0];
+              for (let index = 0; index < expected.length; index += 1) {
+                if (rom?.[reset + index] !== expected[index]) return fail(`bank ${bank} reset path is incorrect`);
+              }
+            }
+            const console = emulator.contentWindow.Javatari.room.console;
+            if (!console.powerIsOn) console.powerOn();
+            const videoSignal = console.tia.getVideoOutput();
+            const monitor = videoSignal.monitor;
+            const originalNextLine = videoSignal.nextLine.bind(videoSignal);
+            let linesThisFrame = 0;
+            const frameLines = [];
+            let bankLineCounts = {};
+            const frameBankLines = [];
+            videoSignal.nextLine = (pixels, vsync) => {
+              linesThisFrame += 1;
+              const bankOffset = cartridge.saveState().bo;
+              bankLineCounts[bankOffset] = (bankLineCounts[bankOffset] || 0) + 1;
+              const finished = originalNextLine(pixels, vsync);
+              if (finished) {
+                frameLines.push(linesThisFrame);
+                frameBankLines.push(bankLineCounts);
+                linesThisFrame = 0;
+                bankLineCounts = {};
+              }
+              return finished;
+            };
+            const controls = console.getConsoleControlsSocket();
+            for (let index = 0; index < 8; index += 1) console.videoClockPulseApplyPulldowns(1);
+            controls.controlStateChanged(15, true);
+            for (let index = 0; index < 2; index += 1) console.videoClockPulseApplyPulldowns(1);
+            controls.controlStateChanged(15, false);
+            for (let index = 0; index < 5; index += 1) console.videoClockPulseApplyPulldowns(1);
+            // The start scene is marked as an ending. Corrupt the first flag,
+            // press Fire, and verify that Restart restores its initial value.
+            console.eval("ram.write(0xad, 255)");
+            controls.controlStateChanged(15, true);
+            for (let index = 0; index < 2; index += 1) console.videoClockPulseApplyPulldowns(1);
+            controls.controlStateChanged(15, false);
+            for (let index = 0; index < 5; index += 1) console.videoClockPulseApplyPulldowns(1);
+            // Exercise the action and inventory renderer paths after handoff.
+            console.eval("ram.write(0x8e, 1)");
+            for (let index = 0; index < 5; index += 1) console.videoClockPulseApplyPulldowns(1);
+            console.eval("ram.write(0x8e, 2)");
+            for (let index = 0; index < 5; index += 1) console.videoClockPulseApplyPulldowns(1);
+            setTimeout(() => {
+              const state = console.saveState(true);
+              const ram = Array.from(atob(state.r.b), (value) => value.charCodeAt(0));
+              const stableFrames = frameLines.filter((lines, index) => index >= 4 && index < frameLines.length - 1);
+              if (!stableFrames.length || stableFrames.some((lines) => lines !== 262)) return fail(`unstable scanline counts: ${frameLines.join(",")}`);
+              if (ram[0x2d] !== 0) return fail(`ending Restart did not restore initial flags: ${ram[0x2d]}`);
+              if (state.ca.bo === 0) return fail(`splash did not hand off to the game; frames=${frameLines.join(",")}; ram=${ram.slice(0, 8).join(",")}`);
+              result.textContent = `PASS: F4 ending Restart restored state and game frames are stable at 262 scanlines (${stableFrames.length} checked)`;
+              fetch("/__f4_runtime__/PASS").catch(() => {});
+            }, 500);
+          } else if (document.querySelector("#job-status")?.textContent === "Failed" || Date.now() - buildStarted > 45000) {
+            clearInterval(waitForCartridge);
+            fail(document.querySelector("#job-output")?.textContent || "cartridge load timed out");
+          }
+        } catch (error) {
+          clearInterval(waitForCartridge);
+          fail(error.stack || error);
+        }
+      }, 100);
+    }, 100);
+  });
+</script>

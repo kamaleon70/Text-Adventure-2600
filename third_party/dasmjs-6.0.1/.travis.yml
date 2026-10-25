@@ -1,0 +1,13 @@
+before_install:
+  - npm set progress=false
+  - npm install
+language: node_js
+node_js:
+  - "node"
+  - "8"
+  - "9"
+  - "10"
+before_script:
+  - npm run build; exit 0
+script:
+  - npm run test

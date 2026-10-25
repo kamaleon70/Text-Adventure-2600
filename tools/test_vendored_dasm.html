@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vendored dasmjs smoke test</title>
+<pre id="result">RUNNING</pre>
+<script src="../editor/story_compiler.js"></script>
+<script src="../editor/dasm.js"></script>
+<script>
+void (async () => {
+  const output = document.querySelector("#result");
+  try {
+    const dasm = window.TextAdventureDasm;
+    if (typeof dasm !== "function") throw new Error("Classic dasm.js did not initialize");
+    const project = await fetch("../editor/project.json").then((response) => response.json());
+    let { generated } = window.TextAdventureStoryCompiler.generateSources(project);
+    const normalize = (path) => path.replaceAll("\\", "/").split("/").reduce((parts, part) => {
+      if (!part || part === ".") return parts;
+      if (part === "..") parts.pop(); else parts.push(part);
+      return parts;
+    }, []).join("/");
+    const expand = async (filename, stack = []) => {
+      const name = normalize(filename);
+      if (stack.includes(name)) throw new Error(`Recursive include: ${name}`);
+      const source = generated.get(name) ?? await fetch(`../${name}`).then((response) => response.text());
+      const lines = [];
+      for (const line of source.split(/\r?\n/)) {
+        const match = line.match(/^\s*include\s+"([^"]+)"\s*(?:;.*)?$/i);
+        const base = name.includes("/") ? name.slice(0, name.lastIndexOf("/") + 1) : "";
+        lines.push(match ? await expand(normalize(base + match[1]), [...stack, name]) : line);
+      }
+      return lines.join("\n");
+    };
+    for (let bank = 0; bank < 8; bank += 1) {
+      output.textContent = `Compiling bank ${bank + 1} of 8`;
+      const source = await expand(`src/bank${bank}.asm`);
+      const result = dasm(source, { format: 3, quick: false, machine: "atari2600" });
+      const bytes = result.data instanceof Uint8Array ? result.data : new Uint8Array(result.data || []);
+      if (bytes.length !== 4096) throw new Error(`Bank ${bank} produced ${bytes.length} bytes`);
+    }
+    for (const borderStyle of ["striped", "solid"]) {
+      project.appearance.border_style = borderStyle;
+      project.appearance.action_background_enabled = true;
+      project.appearance.background_color = 0x02;
+      project.appearance.border_color = 0x46;
+      project.appearance.text_color = 0x0e;
+      project.appearance.action_text_color = 0x1e;
+      project.appearance.action_background_color = 0x84;
+      ({ generated } = window.TextAdventureStoryCompiler.generateSources(project));
+      const source = await expand("src/bank2.asm");
+      const result = dasm(source, { format: 3, quick: false, machine: "atari2600" });
+      const bytes = result.data instanceof Uint8Array ? result.data : new Uint8Array(result.data || []);
+      if (bytes.length !== 4096) throw new Error(`${borderStyle} appearance produced ${bytes.length} bytes`);
+    }
+    output.textContent = "PASS: bundled dasmjs assembled all eight F4 banks and every appearance mode";
+  } catch (error) {
+    output.textContent = `FAIL: ${error.stack || error}`;
+  }
+})();
+</script>

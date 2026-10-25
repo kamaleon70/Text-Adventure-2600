@@ -1,0 +1,619 @@
+{
+  "version": 2,
+  "title": "Derelict Station",
+  "start_room": "room_1_dock",
+  "appearance": {
+    "background_color": 130,
+    "border_color": 132,
+    "text_color": 14,
+    "action_text_color": 14,
+    "action_background_enabled": false,
+    "action_background_color": 36,
+    "border_style": "striped"
+  },
+  "splash": {
+    "enabled": true,
+    "filename": "abbAssymMirror.asm",
+    "source": "\n   processor 6502\n   include \"vcs.h\"\n   include \"macro.h\"\n   SEG.U VARS\n   ORG $80\n\n; $80\nTemp                        ds 1\nPlayFieldHeightCounter      ds 1\nPlayFieldLinesCounter       ds 1\n\nkernel_lines=192\nplayfield_lines=90\nplayfield_line_height=2\npadding_lines=1\n\nplayfield_scanlines=#playfield_lines*#playfield_line_height\nremaining_lines=#kernel_lines-#playfield_scanlines-#padding_lines+2\n\n\nNO_ILLEGAL_OPCODES = 0\n\n\n  SEG CODE\n  ORG $F000\nStart:\n  CLEAN_START\n\n  lda #1\n  sta CTRLPF   ; Mirrored playfield\n\nNextFrame\n\n  VERTICAL_SYNC\n   lda #44\n   sta TIM64T\n\n; My VBLANK code\n\n\n   \n   \nWaitVBlank\n   lda INTIM\n   bne WaitVBlank ; loop until timer expires\n   sta WSYNC\n   sta VBLANK\n\n   ldx #padding_lines\nPaddingLoop\n   sta WSYNC\n   dex\n   bne PaddingLoop\n\n   ldx #playfield_lines-1\n   lda #playfield_line_height\n   sta PlayFieldHeightCounter\n\n\nPlayfieldLoop\n   sta WSYNC                       ; 3     (0)\n   lda PFColors,x                  ; 4     (4)\n   sta COLUPF                      ; 3     (7)\n   lda PF0DataA,x                  ; 4     (11)\n   sta PF0                         ; 3     (14)\n   lda PF1DataA,x                  ; 4     (18)\n   sta PF1                         ; 3     (21)\n   lda PF2DataA,x                  ; 4     (25*)\n   sta PF2                         ; 3     (28)\n   lda PF2DataB,x                  ; 4     (32)\n   tay                             ; 2     (34)\n   lda PF1DataB,x                  ; 4     (38)\n   sta PF1                         ; 3     (41)\n   lda PF0DataB,x                  ; 4     (45)\n   sty PF2                         ; 3     (48)\n   sta PF0                         ; 3     (51)\n   dec PlayFieldHeightCounter      ; 5     (56)\n   bne ____skip_new_row            ; 2/3   (58/59)\n   lda #playfield_line_height      ; 2     (60)\n   sta PlayFieldHeightCounter      ; 3     (63)\n   dex                             ; 2     (65)\n   beq ____done_playfield_rows     ; 2/3   (67)\n____skip_new_row\n   jmp PlayfieldLoop               ; 3     (70)\n\n\n\n____done_playfield_rows\n   lda #0\n   sta PF0\n   sta PF1\n   sta PF2\n   ldx #remaining_lines\nVisibleScreen\n   sta WSYNC\n   dex\n   bne VisibleScreen\n   \nSetupOS\n   lda #36\n   sta TIM64T\n   lda #2\n   sta WSYNC\n   sta VBLANK\n\n\n\n           \nWaitOverscan\n   lda INTIM\n   bne WaitOverscan\n   sta WSYNC\n   \n   jmp NextFrame\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF0DataA\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01000000\n\t.byte %11000000\n\t.byte %01000000\n\t.byte %10000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF1DataA\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01000000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %01000000\n\t.byte %00000000\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %10110001\n\t.byte %10101010\n\t.byte %10101010\n\t.byte %00110010\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF2DataA\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01011100\n\t.byte %01000101\n\t.byte %11001101\n\t.byte %01011101\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01110010\n\t.byte %00010010\n\t.byte %00110010\n\t.byte %01110111\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF0DataB\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %11000000\n\t.byte %00000000\n\t.byte %10000000\n\t.byte %11000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF1DataB\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00000111\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %10101011\n\t.byte %10011010\n\t.byte %10101010\n\t.byte %10011010\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF2DataB\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01001001\n\t.byte %11001001\n\t.byte %01001001\n\t.byte %01011101\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %10100100\n\t.byte %10100100\n\t.byte %01000100\n\t.byte %10101110\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPFColors\n   .byte $0E\n   .byte $0E\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $0E\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n\n\n\n   ECHO ([$FFFC-.]d), \"bytes free\"\n\n   org $fffc\n   .word Start\n   .word Start\n\n\n   ",
+    "delay_frames": 120,
+    "background_color": 0,
+    "metadata": {
+      "kernel_lines": 192,
+      "line_count": 90,
+      "line_height": 2
+    }
+  },
+  "flags": [
+    {
+      "id": "DOCK_LAMP_OFF",
+      "initial": false
+    },
+    {
+      "id": "FUSE_TAKEN",
+      "initial": false
+    },
+    {
+      "id": "FUSE_INSTALLED",
+      "initial": false
+    }
+  ],
+  "objects": [
+    {
+      "id": "fuse",
+      "name": "FUSE",
+      "initial_location": "room_2_store"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "room_1_dock",
+      "name": "Room 1 - Dock",
+      "position": {
+        "x": 64,
+        "y": 482
+      },
+      "entry_scene": "room_1_dock",
+      "exits": {
+        "north": "room_3_hall",
+        "east": "room_2_store",
+        "south": null,
+        "west": null
+      },
+      "scenes": [
+        {
+          "id": "room_1_dock",
+          "name": "Room 1 - Dock",
+          "bank": 1,
+          "text": [
+            "ROOM 1 DOCK",
+            "COLD STARS.",
+            "YOUR SHIP",
+            "IS SILENT.",
+            "A RED LAMP",
+            "STILL BURNS.",
+            "EXITS: N,E",
+            "",
+            "",
+            ""
+          ],
+          "next": "room_1_dock_dark",
+          "exit_overrides": {},
+          "effects": {
+            "next": {
+              "set": [
+                "DOCK_LAMP_OFF"
+              ],
+              "clear": [],
+              "toggle": []
+            }
+          },
+          "context_actions": []
+        },
+        {
+          "id": "room_1_dock_dark",
+          "name": "Dock - lamp dark",
+          "bank": 1,
+          "text": [
+            "ROOM 1 DOCK",
+            "COLD STARS.",
+            "YOUR SHIP",
+            "IS SILENT.",
+            "THE RED LAMP",
+            "IS NOW DARK.",
+            "FLAG IS SET",
+            "NEXT: RESET",
+            "EXITS: N,E",
+            ""
+          ],
+          "next": "room_1_dock",
+          "exit_overrides": {},
+          "effects": {
+            "next": {
+              "set": [],
+              "clear": [
+                "DOCK_LAMP_OFF"
+              ],
+              "toggle": []
+            }
+          },
+          "context_actions": []
+        }
+      ],
+      "variants": [
+        {
+          "scene": "room_1_dock_dark",
+          "when_all": [
+            "DOCK_LAMP_OFF"
+          ],
+          "when_clear": []
+        }
+      ]
+    },
+    {
+      "id": "room_2_store",
+      "name": "Room 2 - Store",
+      "position": {
+        "x": 347,
+        "y": 520
+      },
+      "entry_scene": "room_2_store",
+      "exits": {
+        "north": "room_4_lab",
+        "east": null,
+        "south": null,
+        "west": "room_1_dock"
+      },
+      "scenes": [
+        {
+          "id": "room_2_store",
+          "name": "Room 2 - Store",
+          "bank": 1,
+          "text": [
+            "ROOM 2 STORE",
+            "DUSTY CRATES",
+            "LINE WALLS.",
+            "ONE IS OPEN.",
+            "INSIDE: WIRE",
+            "AND A FUSE.",
+            "TAKE FUSE",
+            "EXITS: W,N",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "TAKE FUSE",
+              "when_all": [],
+              "when_clear": [
+                "FUSE_TAKEN"
+              ],
+              "requires_carried": null,
+              "requires_here": "fuse",
+              "effects": {
+                "set": [
+                  "FUSE_TAKEN"
+                ],
+                "clear": [],
+                "toggle": [],
+                "take_object": "fuse",
+                "remove_object": null
+              }
+            }
+          ]
+        },
+        {
+          "id": "room_2_store_empty",
+          "name": "Store - fuse taken",
+          "bank": 1,
+          "text": [
+            "ROOM 2 STORE",
+            "DUSTY CRATES",
+            "LINE WALLS.",
+            "ONE IS OPEN.",
+            "ONLY WIRE",
+            "REMAINS.",
+            "FUSE TAKEN.",
+            "EXITS: W,N",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": [
+        {
+          "scene": "room_2_store_empty",
+          "when_all": [
+            "FUSE_TAKEN"
+          ],
+          "when_clear": []
+        }
+      ]
+    },
+    {
+      "id": "room_3_hall",
+      "name": "Room 3 - Hall",
+      "position": {
+        "x": 90,
+        "y": 340
+      },
+      "entry_scene": "room_3_hall",
+      "exits": {
+        "north": "room_5_shrine",
+        "east": "room_4_lab",
+        "south": "room_1_dock",
+        "west": null
+      },
+      "scenes": [
+        {
+          "id": "room_3_hall",
+          "name": "Room 3 - Hall",
+          "bank": 1,
+          "text": [
+            "ROOM 3 HALL",
+            "A DARK HALL.",
+            "MARKS CROSS",
+            "THE FLOOR.",
+            "YOU HEAR",
+            "SLOW STEPS.",
+            "EXITS: S,E,N",
+            "",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "room_4_lab",
+      "name": "Room 4 - Lab",
+      "position": {
+        "x": 435,
+        "y": 295
+      },
+      "entry_scene": "room_4_lab",
+      "exits": {
+        "north": null,
+        "east": "room_6_shaft",
+        "south": "room_2_store",
+        "west": "room_3_hall"
+      },
+      "scenes": [
+        {
+          "id": "room_4_lab",
+          "name": "Room 4 - Lab",
+          "bank": 1,
+          "text": [
+            "ROOM 4 LAB",
+            "GLASS TUBES",
+            "ARE BROKEN.",
+            "A DEAD TECH",
+            "HAS A CARD.",
+            "TAKE CARD",
+            "EXITS: W,S,E",
+            "",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "room_5_shrine",
+      "name": "Room 5 - Shrine",
+      "position": {
+        "x": 90,
+        "y": 180
+      },
+      "entry_scene": "room_5_shrine",
+      "exits": {
+        "north": null,
+        "east": "room_7_core",
+        "south": "room_3_hall",
+        "west": null
+      },
+      "scenes": [
+        {
+          "id": "room_5_shrine",
+          "name": "Room 5 - Shrine",
+          "bank": 1,
+          "text": [
+            "R5 SHRINE",
+            "BLACK STONE",
+            "FILLS ROOM.",
+            "A SYMBOL",
+            "GLOWS BLUE.",
+            "IT FEELS",
+            "SEEMS ALIVE.",
+            "EXITS: S,E",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "room_6_shaft",
+      "name": "Room 6 - Shaft",
+      "position": {
+        "x": 699,
+        "y": 187
+      },
+      "entry_scene": "room_6_shaft",
+      "exits": {
+        "north": "room_7_core",
+        "east": null,
+        "south": "room_8_flood",
+        "west": "room_4_lab"
+      },
+      "scenes": [
+        {
+          "id": "room_6_shaft",
+          "name": "Room 6 - Shaft",
+          "bank": 1,
+          "text": [
+            "ROOM 6 SHAFT",
+            "A DEEP SHAFT",
+            "DROPS BELOW.",
+            "LIFT WAITS.",
+            "NO POWER.",
+            "USE FUSE",
+            "EXITS: W,N,S",
+            "",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "USE FUSE",
+              "when_all": [],
+              "when_clear": [
+                "FUSE_INSTALLED"
+              ],
+              "requires_carried": "fuse",
+              "requires_here": null,
+              "effects": {
+                "set": [
+                  "FUSE_INSTALLED"
+                ],
+                "clear": [],
+                "toggle": [],
+                "take_object": null,
+                "remove_object": "fuse"
+              }
+            }
+          ]
+        },
+        {
+          "id": "room_6_shaft_powered",
+          "name": "Shaft - powered",
+          "bank": 1,
+          "text": [
+            "ROOM 6 SHAFT",
+            "A DEEP SHAFT",
+            "DROPS BELOW.",
+            "FUSE HUMS.",
+            "LIFT POWERED",
+            "LIFT WAITS.",
+            "EXITS: W,N,S",
+            "",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": [
+        {
+          "scene": "room_6_shaft_powered",
+          "when_all": [
+            "FUSE_INSTALLED"
+          ],
+          "when_clear": []
+        }
+      ]
+    },
+    {
+      "id": "room_7_core",
+      "name": "Room 7 - Core",
+      "position": {
+        "x": 424,
+        "y": 48
+      },
+      "entry_scene": "room_7_core",
+      "exits": {
+        "north": null,
+        "east": "room_9_bridge",
+        "south": "room_6_shaft",
+        "west": "room_5_shrine"
+      },
+      "scenes": [
+        {
+          "id": "room_7_core",
+          "name": "Room 7 - Core",
+          "bank": 1,
+          "text": [
+            "ROOM 7 CORE",
+            "THE CORE",
+            "BEATS LIKE",
+            "A HEART.",
+            "A SHADOW",
+            "STIRS THERE.",
+            "EXITS: W,S,E",
+            "",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "room_8_flood",
+      "name": "Room 8 - Flood",
+      "position": {
+        "x": 669,
+        "y": 496
+      },
+      "entry_scene": "room_8_flood",
+      "exits": {
+        "north": "room_6_shaft",
+        "east": "room_10_vault",
+        "south": null,
+        "west": null
+      },
+      "scenes": [
+        {
+          "id": "room_8_flood",
+          "name": "Room 8 - Flood",
+          "bank": 2,
+          "text": [
+            "ROOM 8 FLOOD",
+            "BLACK WATER",
+            "FILLS FLOOR.",
+            "SOMETHING",
+            "MOVES BELOW.",
+            "A HATCH",
+            "IS EAST.",
+            "EXITS: N,E",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "room_9_bridge",
+      "name": "Room 9 - Bridge",
+      "position": {
+        "x": 884,
+        "y": 38
+      },
+      "entry_scene": "room_9_bridge",
+      "exits": {
+        "north": null,
+        "east": null,
+        "south": "room_10_vault",
+        "west": "room_7_core"
+      },
+      "scenes": [
+        {
+          "id": "room_9_bridge",
+          "name": "Room 9 - Bridge",
+          "bank": 2,
+          "text": [
+            "R9 BRIDGE",
+            "DEAD SCREENS",
+            "FACE YOU.",
+            "USE CARD",
+            "ONE SCREEN",
+            "SHOWS VAULT.",
+            "EXITS: W,S",
+            "",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "room_10_vault",
+      "name": "Room 10 - Vault",
+      "position": {
+        "x": 996,
+        "y": 385
+      },
+      "entry_scene": "room_10_vault",
+      "exits": {
+        "north": "room_9_bridge",
+        "east": null,
+        "south": null,
+        "west": "room_8_flood"
+      },
+      "scenes": [
+        {
+          "id": "room_10_vault",
+          "name": "Room 10 - Vault",
+          "bank": 2,
+          "text": [
+            "ROOM10 VAULT",
+            "THE VAULT",
+            "IS OPEN.",
+            "A BLACK GEM",
+            "RESTS HERE.",
+            "TAKE GEM",
+            "THEN ESCAPE.",
+            "EXITS: W,N",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "page_11",
+      "name": "Test Room",
+      "position": {
+        "x": 269,
+        "y": 620
+      },
+      "entry_scene": "page_11",
+      "exits": {
+        "north": null,
+        "east": null,
+        "south": null,
+        "west": null
+      },
+      "scenes": [
+        {
+          "id": "page_11",
+          "name": "Test Room",
+          "bank": 2,
+          "text": [
+            "TEST",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          "next": null,
+          "exit_overrides": {},
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    }
+  ]
+}
