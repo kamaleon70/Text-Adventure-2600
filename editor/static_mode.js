@@ -1,2 +1,2 @@
-window.TINY_TEXT_STATIC = false;
-window.TINY_TEXT_SOURCE_ROOT = "../";
+window.TINY_TEXT_STATIC = true;
+window.TINY_TEXT_SOURCE_ROOT = "";

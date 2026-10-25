@@ -27,7 +27,10 @@ It opens `http://127.0.0.1:8765/`. The editor provides:
 - browser-only DASM assembly, ROM download, and embedded Javatari playtesting;
 - an in-app manual for people using the hosted editor on itch.io.
 
-The browser compiler and Javatari are bundled locally; an itch.io build does not
+The launcher is a PowerShell-only, loopback static server. It does not require
+Python, Node.js, DASM, an installation step, or administrator privileges. Keep
+the PowerShell window open while using the editor and press Ctrl+C to stop it.
+The browser compiler and Javatari are bundled locally, so the editor does not
 depend on an external compiler or CDN.
 
 ## 32K cartridge layout and capacity
@@ -63,37 +66,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 
 The result is `bin\text_adventure_f4.bin`, exactly 32,768 bytes, plus separate
 bank binaries, listings, and symbol files under `bin\`.
-
-## itch.io package
-
-Run `package_itch_editor.ps1` to create the upload ZIP. Its runtime files are at
-the ZIP root:
-
-```text
-index.html
-styles.css
-app.js
-browser_build.js
-story_compiler.js
-source_bundle.js
-static_mode.js
-javatari.js
-project.json
-dasm.js
-dasm.LICENSE.txt
-javatari.LICENSE.txt
-LICENSE.txt
-LICENSING.md
-ROM_OUTPUT_EXCEPTION.md
-README.md
-NOTICE.md
-```
-
-On itch.io, choose an HTML project and enable “This file will be played in the
-browser.” Do not wrap the files in an `editor` folder. `source_bundle.js`
-contains the ASM templates and headers because the hosted page does not need to
-fetch raw `.asm` files. Do not include `src`, `lib`, `bin`, `tools`, scripts,
-Python files, or a prebuilt ROM.
 
 ## Optional colour splash
 
@@ -160,8 +132,3 @@ closed-source without publishing their project files. A distributed game only
 needs to include the required Text Adventure 2600 credit and itch.io link in a
 reasonable public-facing place. See `LICENSING.md` and
 `ROM_OUTPUT_EXCEPTION.md` for the exact terms.
-
-Run `package_public_source.ps1` to produce the clean archive intended for a
-public Git repository. It includes the exact tagged dasmjs and Javatari source
-trees while excluding build output, emulator state, old experiments, and local
-files.
