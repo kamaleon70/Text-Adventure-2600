@@ -43,6 +43,8 @@ if (fs.existsSync(dasm)) {
       project.appearance.text_color = 0x0e;
       project.appearance.action_text_color = 0x1e;
       project.appearance.action_background_color = 0x84;
+      project.appearance_presets = [{ id: "danger", name: "Danger", appearance: { ...project.appearance, action_text_color: 0x5e } }];
+      project.rooms[0].scenes[0].appearance_preset = "danger";
       project.rooms[0].scenes[0].appearance_overrides = {
         background_color: 0x22,
         text_color: 0x3e,
@@ -53,6 +55,7 @@ if (fs.existsSync(dasm)) {
       ({ generated } = globalThis.TextAdventureStoryCompiler.generateSources(project));
       const storyTables = generated.get("src/data/bank2_text.inc");
       if (!storyTables.includes("SceneBackgroundColors\n        dc.b $22")) throw new Error("scene background override was not generated");
+      if (!storyTables.includes("SceneActionTextColors\n        dc.b $5E")) throw new Error("scene appearance preset was not generated");
       if (!storyTables.includes("SceneActionBackgroundColors\n        dc.b $66")) throw new Error("scene action-background override was not generated");
       const sourcePath = path.join(temporary, `${borderStyle}.asm`);
       const binaryPath = path.join(temporary, `${borderStyle}.bin`);

@@ -418,6 +418,7 @@ def validate_project(raw: Any) -> dict[str, Any]:
                 "next": _clean_target(raw_scene.get("next"), f"{scene_id}: NEXT target"),
                 "exit_overrides": clean_overrides,
                 "ending": bool(raw_scene.get("ending", False)),
+                "appearance_preset": _clean_target(raw_scene.get("appearance_preset"), f"{scene_id}: appearance_preset"),
                 "appearance_overrides": _validate_appearance_overrides(raw_scene.get("appearance_overrides"), scene_id),
                 "effects": {},
                 "context_actions": [],
@@ -524,6 +525,9 @@ def validate_project(raw: Any) -> dict[str, Any]:
     for room in clean_rooms:
         if room["appearance_preset"] is not None and room["appearance_preset"] not in preset_ids:
             raise StoryError(f"{room['id']}: appearance_preset references missing preset '{room['appearance_preset']}'")
+        for scene in room["scenes"]:
+            if scene["appearance_preset"] is not None and scene["appearance_preset"] not in preset_ids:
+                raise StoryError(f"{scene['id']}: appearance_preset references missing preset '{scene['appearance_preset']}'")
 
     if scene_count > MAX_PAGES_PER_BANK * usable_bank_count:
         raise StoryError(
@@ -798,6 +802,7 @@ def generate_bank_text(project: dict[str, Any], bank: int) -> str:
             **project["appearance"],
             **presets.get(room["appearance_preset"], {}),
             **room["appearance_overrides"],
+            **presets.get(scene["appearance_preset"], {}),
             **scene["appearance_overrides"],
         }
         for room, scene in pages

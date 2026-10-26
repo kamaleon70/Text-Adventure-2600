@@ -5,7 +5,7 @@ Atari 2600 text adventures. Its renderer began with Steven E. Hugg's CC0
 `tinyfonts2.a` example. Release and licensing details are in `LICENSING.md`,
 `ROM_OUTPUT_EXCEPTION.md`, and `NOTICE.md`.
 
-Current editor version: **0.4 beta**.
+Current editor version: **0.5 beta**.
 
 Each scene has ten rows of 12 characters. The engine owns the eleventh row for
 movement, LOOK/NEXT, inventory, and contextual actions.

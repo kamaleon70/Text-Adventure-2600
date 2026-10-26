@@ -12,7 +12,7 @@
     <div class="brand-lockup">
       <img class="brand-logo" src="logomauro.png" alt="kamaleon70 logo" width="100" height="100">
       <div class="brand-copy">
-        <p class="eyebrow brand-byline">by kamaleon70 <span class="editor-version">Version 0.4 beta</span></p>
+        <p class="eyebrow brand-byline">by kamaleon70 <span class="editor-version">Version 0.5 beta</span></p>
         <h1>Text Adventure <span>2600</span></h1>
         <p class="subtitle">Shape rooms, continuation scenes, actions, and twelve-character text.</p>
       </div>
@@ -105,8 +105,9 @@
                 </article>
               </div>
               <article class="card scene-appearance-card">
-                <div class="section-heading"><div><p class="kicker">Optional scene overrides</p><h3>Scene colours and border</h3></div><div class="mini-actions"><span id="scene-appearance-count">0 custom settings</span><button id="scene-appearance-reset" class="button ghost" type="button">Reset to room appearance</button></div></div>
-                <p class="help">Unchecked settings inherit the room preset or room appearance, then the global default. Custom settings apply only to this scene.</p>
+                <div class="section-heading"><div><p class="kicker">Optional scene appearance</p><h3>Scene colours and border</h3></div><div class="mini-actions"><span id="scene-appearance-count">Inherits room</span><button id="scene-appearance-reset" class="button ghost" type="button">Reset scene appearance</button></div></div>
+                <p class="help">Choose a reusable theme for this scene or inherit the room appearance. Individual custom settings override the selected scene theme.</p>
+                <div class="scene-theme-row"><label>Scene appearance<select id="scene-appearance-preset"></select></label></div>
                 <div class="appearance-copy-row"><label>Copy appearance from scene<select id="scene-appearance-copy-source"></select></label><button id="scene-appearance-copy" class="button ghost" type="button">Copy to scene</button></div>
                 <div id="scene-appearance-fields" class="scene-appearance-fields"></div>
               </article>
@@ -291,7 +292,7 @@
           </article>
           <article class="card manual-card" data-manual-guide="appearance">
             <p class="kicker">Cartridge display</p><h3>Colours and border</h3>
-            <ul><li>Select separate Atari colours for the centre story background, side panels, story text, and action-row text.</li><li><strong>Striped side panels</strong> preserves the original look. <strong>Solid side panels</strong> fills both sides with the selected panel colour, as shown in the preview.</li><li>The optional action-row background changes only the centre area behind the final line; the side panels continue beside it.</li><li>Create reusable presets such as Outdoor, Castle, or Dungeon, then select one from a room's <strong>Room appearance</strong> list.</li><li>Selecting a room appearance applies it to every scene in the room and clears its previous scene overrides. You can then customize individual scenes again if needed.</li><li>Individual scenes can inherit the room appearance, override selected settings, or copy another scene.</li><li>The inheritance order is <strong>Global default → Room appearance → Scene override</strong>.</li><li>The browser preview approximates NTSC colours. Test the finished ROM in Javatari or Stella before publishing.</li></ul>
+            <ul><li>Select separate Atari colours for the centre story background, side panels, story text, and action-row text.</li><li><strong>Striped side panels</strong> preserves the original look. <strong>Solid side panels</strong> fills both sides with the selected panel colour, as shown in the preview.</li><li>The optional action-row background changes only the centre area behind the final line; the side panels continue beside it.</li><li>Create reusable presets such as Outdoor, Castle, Lights On, or Danger, then select one for a room or an individual scene.</li><li>Selecting a room appearance applies it to every scene in the room and clears its previous scene appearance. You can then give conditional or continuation scenes their own themes.</li><li>Individual settings can further customize a scene, and an appearance can also be copied from another scene.</li><li>The inheritance order is <strong>Global default → Room appearance → Scene appearance → Individual scene settings</strong>.</li><li>The browser preview approximates NTSC colours. Test the finished ROM in Javatari or Stella before publishing.</li></ul>
           </article>
           <article class="card manual-card" data-manual-guide="splash">
             <p class="kicker">Opening artwork</p><h3>Create a splash screen</h3>

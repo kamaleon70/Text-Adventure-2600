@@ -90,12 +90,19 @@ function roomAppearance(room) {
   return { ...appearanceSettings(), ...(preset?.appearance || {}), ...room.appearance_overrides };
 }
 function clearRoomSceneAppearanceOverrides(room) {
-  room.scenes.forEach((scene) => { scene.appearance_overrides = {}; });
+  room.scenes.forEach((scene) => {
+    scene.appearance_preset = null;
+    scene.appearance_overrides = {};
+  });
+}
+function sceneInheritedAppearance(scene) {
+  const room = sceneRecord(scene.id)?.room;
+  const preset = appearancePresetById(scene.appearance_preset);
+  return { ...(room ? roomAppearance(room) : appearanceSettings()), ...(preset?.appearance || {}) };
 }
 function sceneAppearance(scene) {
   scene.appearance_overrides ||= {};
-  const room = sceneRecord(scene.id)?.room;
-  return { ...(room ? roomAppearance(room) : appearanceSettings()), ...scene.appearance_overrides };
+  return { ...sceneInheritedAppearance(scene), ...scene.appearance_overrides };
 }
 
 function assignBanks() {
@@ -264,7 +271,7 @@ function createEmptyProject() {
       appearance_overrides: {},
       entry_scene: "room_1",
       exits: { north: null, east: null, south: null, west: null },
-      scenes: [{ id: "room_1", name: "Main description", bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_overrides: {}, effects: {}, context_actions: [] }],
+      scenes: [{ id: "room_1", name: "Main description", bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_preset: null, appearance_overrides: {}, effects: {}, context_actions: [] }],
       variants: [],
     }],
   });
@@ -290,6 +297,7 @@ function newProject() {
 }
 
 function showTab(name) {
+  document.body.classList.toggle("page-editor-active", name === "page");
   $$(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
   $$(".panel").forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === name));
   const content = $("main");
@@ -348,6 +356,8 @@ function selectScene(id, openEditor = false) {
   renderWorld();
   renderPageEditor();
   if (openEditor) showTab("page");
+  const workspace = $(".page-workspace");
+  if (workspace) workspace.scrollTop = 0;
 }
 
 function renderWorldLinks() {
@@ -658,7 +668,7 @@ function addRoom() {
     appearance_overrides: {},
     entry_scene: sceneId,
     exits: { north: null, east: null, south: null, west: null },
-    scenes: [{ id: sceneId, name: "Main description", bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_overrides: {}, effects: {}, context_actions: [] }],
+    scenes: [{ id: sceneId, name: "Main description", bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_preset: null, appearance_overrides: {}, effects: {}, context_actions: [] }],
     variants: [],
   });
   assignBanks(); state.selectedScene = sceneId; markDirty(); renderAll(); showTab("page");
@@ -671,7 +681,7 @@ function addScene() {
   }
   const { room } = record;
   const id = uniqueSceneId(`${room.id}_page`);
-  room.scenes.push({ id, name: uniqueSceneName(room, room.scenes.length), bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_overrides: {}, effects: {}, context_actions: [] });
+  room.scenes.push({ id, name: uniqueSceneName(room, room.scenes.length), bank: 0, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: false, appearance_preset: null, appearance_overrides: {}, effects: {}, context_actions: [] });
   assignBanks(); state.selectedScene = id; markDirty(); renderAll();
 }
 
@@ -1021,9 +1031,9 @@ function atariColourOptions(selected) {
   }).join("")}</optgroup>`).join("");
 }
 
-function presetOptions(selected = "", includeGlobal = true) {
-  const global = includeGlobal ? `<option value=""${selected ? "" : " selected"}>Global default</option>` : "";
-  return global + appearancePresets().map((preset) => `<option value="${escapeHtml(preset.id)}"${preset.id === selected ? " selected" : ""}>${escapeHtml(preset.name)}</option>`).join("");
+function presetOptions(selected = "", defaultLabel = "Global default") {
+  const defaultOption = `<option value=""${selected ? "" : " selected"}>${escapeHtml(defaultLabel)}</option>`;
+  return defaultOption + appearancePresets().map((preset) => `<option value="${escapeHtml(preset.id)}"${preset.id === selected ? " selected" : ""}>${escapeHtml(preset.name)}</option>`).join("");
 }
 
 function renderRoomAppearance(room) {
@@ -1043,8 +1053,16 @@ function renderRoomAppearance(room) {
 function renderSceneAppearance(scene) {
   const container = $("#scene-appearance-fields");
   if (!container) return;
-  const room = sceneRecord(scene.id)?.room;
-  const inherited = room ? roomAppearance(room) : appearanceSettings();
+  scene.appearance_preset ||= null;
+  const presetSelect = $("#scene-appearance-preset");
+  presetSelect.innerHTML = presetOptions(scene.appearance_preset, "Inherit room appearance");
+  presetSelect.value = scene.appearance_preset || "";
+  presetSelect.onchange = () => {
+    scene.appearance_preset = presetSelect.value || null;
+    scene.appearance_overrides = {};
+    markDirty(); renderSceneAppearance(scene); renderPlaytest();
+  };
+  const inherited = sceneInheritedAppearance(scene);
   const overrides = scene.appearance_overrides ||= {};
   const effective = sceneAppearance(scene);
   const colourFields = ["background_color", "border_color", "text_color", "action_text_color", "action_background_color"];
@@ -1071,8 +1089,10 @@ function renderSceneAppearance(scene) {
     </div>`);
   }
   container.innerHTML = rows.join("");
-  $("#scene-appearance-count").textContent = `${Object.keys(overrides).length} custom setting${Object.keys(overrides).length === 1 ? "" : "s"}`;
-  $("#scene-appearance-reset").disabled = Object.keys(overrides).length === 0;
+  const customCount = Object.keys(overrides).length;
+  const preset = appearancePresetById(scene.appearance_preset);
+  $("#scene-appearance-count").textContent = preset ? `${preset.name}${customCount ? ` · ${customCount} custom` : ""}` : (customCount ? `${customCount} custom setting${customCount === 1 ? "" : "s"}` : "Inherits room");
+  $("#scene-appearance-reset").disabled = !scene.appearance_preset && customCount === 0;
 
   container.querySelectorAll("[data-scene-appearance-toggle]").forEach((toggle) => toggle.addEventListener("change", () => {
     const field = toggle.dataset.sceneAppearanceToggle;
@@ -1086,6 +1106,7 @@ function renderSceneAppearance(scene) {
     markDirty(); renderSceneAppearance(scene); renderPlaytest();
   }));
   $("#scene-appearance-reset").onclick = () => {
+    scene.appearance_preset = null;
     scene.appearance_overrides = {};
     markDirty(); renderSceneAppearance(scene); renderPlaytest();
   };
@@ -1100,6 +1121,7 @@ function renderSceneAppearance(scene) {
   $("#scene-appearance-copy").onclick = () => {
     const source = sceneById(copySelect.value);
     if (!source) return;
+    scene.appearance_preset = null;
     scene.appearance_overrides = { ...sceneAppearance(source) };
     markDirty(); renderSceneAppearance(scene); renderPlaytest();
   };
@@ -1125,7 +1147,10 @@ function deleteAppearancePreset() {
   const preset = appearancePresetById(state.appearancePreset);
   if (!preset || !confirm(`Delete appearance preset “${preset.name}”? Linked rooms will return to the global default.`)) return;
   state.project.appearance_presets = appearancePresets().filter((candidate) => candidate !== preset);
-  state.project.rooms.forEach((room) => { if (room.appearance_preset === preset.id) room.appearance_preset = null; });
+  state.project.rooms.forEach((room) => {
+    if (room.appearance_preset === preset.id) room.appearance_preset = null;
+    room.scenes.forEach((scene) => { if (scene.appearance_preset === preset.id) scene.appearance_preset = null; });
+  });
   state.appearancePreset = state.project.appearance_presets[0]?.id || null;
   markDirty(); renderAppearance(); renderPageEditor(); renderPlaytest();
 }

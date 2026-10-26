@@ -103,6 +103,7 @@ main { min-height: 0; padding: 30px clamp(16px, 4vw, 64px) 64px; overflow-x: hid
 .identity-card { margin-bottom: 18px; }
 .identity-card .form-grid { margin-bottom: 13px; }
 .scene-identity { padding: 15px; background: #ece7d5; border-radius: 9px; }
+.scene-identity .toggle-row { align-self: end; min-height: 40px; margin-bottom: 0; padding: 0 4px; }
 .room-exits { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 9px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 13px; margin-bottom: 18px; }
 label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 750; }
@@ -153,6 +154,7 @@ input:focus, select:focus { outline: 3px solid rgba(182,214,109,.5); border-colo
 .scene-appearance-card .mini-actions > span { color: var(--muted); font: 700 11px monospace; }
 .room-appearance-controls { margin: 14px 0; padding: 12px; background: #f2eedf; border-radius: 8px; }
 .room-appearance-controls label { max-width: 520px; }
+.scene-theme-row { max-width: 520px; margin-top: 12px; }
 .appearance-copy-row { display: grid; grid-template-columns: minmax(240px, 1fr) auto; gap: 10px; align-items: end; margin-top: 12px; }
 .scene-appearance-fields { display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 10px; margin-top: 14px; }
 .scene-appearance-row { display: grid; grid-template-columns: 1fr; gap: 7px; padding: 11px; background: #f2eedf; border-radius: 8px; }
@@ -262,6 +264,14 @@ pre { min-height: 250px; max-height: 440px; margin: 0; padding: 18px; overflow: 
 .package-card { margin-bottom: 18px; }
 .file-tree { min-height: 0; max-height: none; margin: 14px 0; color: #d7e9c7; }
 .itch-warning { margin-bottom: 18px; border-left: 6px solid var(--green); background: #edf1df; }
+@media (min-width: 901px) {
+  body.page-editor-active main { overflow-y: hidden; padding-bottom: 30px; }
+  body.page-editor-active [data-panel="page"] { height: 100%; min-height: 0; }
+  body.page-editor-active .editor-layout { height: 100%; min-height: 0; }
+  body.page-editor-active .page-sidebar { display: flex; min-height: 0; flex-direction: column; overflow: hidden; }
+  body.page-editor-active .page-list { min-height: 0; padding-right: 5px; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
+  body.page-editor-active .page-workspace { min-height: 0; padding-right: 8px; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
+}
 @media (max-width: 900px) {
   .masthead, .page-heading { align-items: flex-start; flex-direction: column; }
   .capacity-row, .editor-layout, .editing-columns, .scene-appearance-fields, .play-layout, .appearance-layout, .build-grid, .build-runtime, .manual-layout, .splash-grid, .flags-layout, .debug-banks, .room-exits, .room-appearance-controls { grid-template-columns: 1fr; }

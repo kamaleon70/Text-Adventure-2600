@@ -137,6 +137,29 @@ class StoryModelTests(unittest.TestCase):
         with self.assertRaisesRegex(StoryError, "missing preset"):
             validate_project(project)
 
+    def test_scene_preset_overrides_room_preset_without_using_ram(self) -> None:
+        project = self.make_large_project(2)
+        base = dict(self.project["appearance"])
+        project["appearance_presets"] = [
+            {"id": "dark", "name": "Dark", "appearance": {**base, "background_color": 0x02, "border_color": 0x04}},
+            {"id": "danger", "name": "Danger", "appearance": {**base, "background_color": 0x42, "border_color": 0x46}},
+        ]
+        project["rooms"][0]["appearance_preset"] = "dark"
+        project["rooms"][0]["scenes"][0]["appearance_preset"] = "danger"
+        project["rooms"][0]["scenes"][0]["appearance_overrides"] = {"text_color": 0x3E}
+        validated = validate_project(project)
+        self.assertIsNone(validated["rooms"][1]["scenes"][0]["appearance_preset"])
+        source = generate_bank_text(validated, 2)
+        self.assertIn("SceneBackgroundColors\n        dc.b $42,$82", source)
+        self.assertIn("SceneBorderColors\n        dc.b $46,$84", source)
+        self.assertIn("SceneTextColors\n        dc.b $3E,$0E", source)
+
+    def test_scene_rejects_missing_appearance_preset(self) -> None:
+        project = self.make_large_project(1)
+        project["rooms"][0]["scenes"][0]["appearance_preset"] = "missing"
+        with self.assertRaisesRegex(StoryError, "missing preset"):
+            validate_project(project)
+
     def test_ending_scene_generates_restart_markers(self) -> None:
         project = self.make_large_project(2)
         project["rooms"][0]["scenes"][0]["ending"] = True

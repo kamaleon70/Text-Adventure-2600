@@ -177,7 +177,9 @@
           return { label: validateCharacters(action.label || "", `${label} label`), when_all: checkedFlags(action.when_all, `${label} when_all`, flagIds), when_clear: checkedFlags(action.when_clear, `${label} when_clear`, flagIds), requires_carried: target(action.requires_carried, `${label} requires_carried`), requires_here: target(action.requires_here, `${label} requires_here`), effects: actionEffects };
         });
         if (contextActions.length > 6) fail(`${scene.id}: context_actions must contain at most six actions`);
-        const result = { id: scene.id, name: String(scene.name || scene.id).trim(), bank: firstBank + Math.floor(sceneCount / MAX_PAGES_PER_BANK), text: scene.text.map((row, index) => validateCharacters(row, `${scene.id} row ${index + 1}`, true)), next: target(scene.next, `${scene.id}: NEXT target`), exit_overrides: {}, ending: Boolean(scene.ending), appearance_overrides: validateAppearanceOverrides(scene.appearance_overrides, scene.id), effects, context_actions: contextActions };
+        const appearancePreset = target(scene.appearance_preset, `${scene.id}: appearance_preset`);
+        if (appearancePreset && !presetIds.has(appearancePreset)) fail(`${scene.id}: appearance_preset references missing preset '${appearancePreset}'`);
+        const result = { id: scene.id, name: String(scene.name || scene.id).trim(), bank: firstBank + Math.floor(sceneCount / MAX_PAGES_PER_BANK), text: scene.text.map((row, index) => validateCharacters(row, `${scene.id} row ${index + 1}`, true)), next: target(scene.next, `${scene.id}: NEXT target`), exit_overrides: {}, ending: Boolean(scene.ending), appearance_preset: appearancePreset, appearance_overrides: validateAppearanceOverrides(scene.appearance_overrides, scene.id), effects, context_actions: contextActions };
         for (const [direction, value] of Object.entries(scene.exit_overrides || {})) { if (!MOVEMENTS.includes(direction)) fail(`${scene.id}: unknown exit override ${direction}`); result.exit_overrides[direction] = target(value, `${scene.id}: ${direction} override`); }
         sceneCount += 1; return result;
       });
@@ -271,7 +273,7 @@
     const pages = bankScenes(project, bank);
     pages.forEach(([room, scene], index) => { if (index % 2 === 0) lines.push("        align $100"); lines.push(`; ${room.id} / ${scene.id} - ${scene.name}`, `Page${index}Text`, ...scene.text.map((row) => `        dc.b "${row.padEnd(ROW_WIDTH).replaceAll(" ", "[")}"`)); });
     const presets = new Map(project.appearance_presets.map((preset) => [preset.id, preset.appearance]));
-    const effective = pages.map(([room, scene]) => ({ ...project.appearance, ...(presets.get(room.appearance_preset) || {}), ...room.appearance_overrides, ...scene.appearance_overrides }));
+    const effective = pages.map(([room, scene]) => ({ ...project.appearance, ...(presets.get(room.appearance_preset) || {}), ...room.appearance_overrides, ...(presets.get(scene.appearance_preset) || {}), ...scene.appearance_overrides }));
     while (effective.length < MAX_PAGES_PER_BANK) effective.push(project.appearance);
     const emit = (label, values) => {
       lines.push(label);
