@@ -37,7 +37,13 @@
       toggle = document.querySelector('[data-scene-appearance-toggle="background_color"]');
       select = document.querySelector('[data-scene-appearance="background_color"]');
       if (!toggle || !select || toggle.checked || !select.disabled || select.value !== "34") return fail("room preset did not replace the first scene override");
-      if (!document.body.classList.contains("page-editor-active") || getComputedStyle(document.querySelector("#page-list")).overflowY !== "auto" || getComputedStyle(document.querySelector(".page-workspace")).overflowY !== "auto") return fail("room list and scene editor do not scroll independently");
+      const pageList = document.querySelector("#page-list");
+      const pageWorkspace = document.querySelector(".page-workspace");
+      if (!document.body.classList.contains("page-editor-active") || getComputedStyle(pageList).overflowY !== "scroll" || getComputedStyle(pageWorkspace).overflowY !== "scroll") return fail("room list and scene editor are not configured for independent scrolling");
+      if (pageList.scrollHeight <= pageList.clientHeight || pageWorkspace.scrollHeight <= pageWorkspace.clientHeight) return fail("room list or scene editor was not constrained to the available height");
+      pageList.scrollTop = 80;
+      pageWorkspace.scrollTop = 80;
+      if (pageList.scrollTop === 0 || pageWorkspace.scrollTop === 0) return fail("room list or scene editor cannot actually scroll");
       document.querySelector('[data-tab="appearance"]').click();
       document.querySelector("#appearance-preset-add").click();
       const scenePresetBackground = document.querySelector('[data-preset-appearance="background_color"]');

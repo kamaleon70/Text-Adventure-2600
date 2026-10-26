@@ -265,12 +265,14 @@ pre { min-height: 250px; max-height: 440px; margin: 0; padding: 18px; overflow: 
 .file-tree { min-height: 0; max-height: none; margin: 14px 0; color: #d7e9c7; }
 .itch-warning { margin-bottom: 18px; border-left: 6px solid var(--green); background: #edf1df; }
 @media (min-width: 901px) {
-  body.page-editor-active main { overflow-y: hidden; padding-bottom: 30px; }
-  body.page-editor-active [data-panel="page"] { height: 100%; min-height: 0; }
-  body.page-editor-active .editor-layout { height: 100%; min-height: 0; }
-  body.page-editor-active .page-sidebar { display: flex; min-height: 0; flex-direction: column; overflow: hidden; }
-  body.page-editor-active .page-list { min-height: 0; padding-right: 5px; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
-  body.page-editor-active .page-workspace { min-height: 0; padding-right: 8px; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
+  body.page-editor-active main { display: grid; min-height: 0; grid-template-rows: minmax(0, 1fr); overflow-y: hidden; padding-bottom: 30px; }
+  body.page-editor-active #app { display: grid; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+  body.page-editor-active [data-panel="page"].active { display: grid; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+  body.page-editor-active .editor-layout { min-height: 0; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+  body.page-editor-active .page-sidebar { display: flex; height: 100%; min-height: 0; max-height: 100%; flex-direction: column; overflow: hidden; }
+  body.page-editor-active .sidebar-title { flex: 0 0 auto; }
+  body.page-editor-active .page-list { min-height: 0; flex: 1 1 0; padding-right: 5px; overflow-y: scroll; scrollbar-gutter: stable; overscroll-behavior: contain; }
+  body.page-editor-active .page-workspace { height: 100%; min-height: 0; max-height: 100%; padding-right: 8px; overflow-y: scroll; scrollbar-gutter: stable; overscroll-behavior: contain; }
 }
 @media (max-width: 900px) {
   .masthead, .page-heading { align-items: flex-start; flex-direction: column; }
