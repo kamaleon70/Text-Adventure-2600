@@ -12,7 +12,7 @@
     <div class="brand-lockup">
       <img class="brand-logo" src="logomauro.png" alt="kamaleon70 logo" width="100" height="100">
       <div class="brand-copy">
-        <p class="eyebrow brand-byline">by kamaleon70 <span class="editor-version">Version 0.5 beta</span></p>
+        <p class="eyebrow brand-byline">by kamaleon70 <span class="editor-version">Version 0.6 beta</span></p>
         <h1>Text Adventure <span>2600</span></h1>
         <p class="subtitle">Shape rooms, continuation scenes, actions, and twelve-character text.</p>
       </div>
@@ -38,7 +38,7 @@
     <button class="tab" data-tab="splash" type="button">Splash screen</button>
     <button class="tab" data-tab="build" type="button">Build &amp; run</button>
     <button class="tab" data-tab="debug" type="button">Debug</button>
-    <button class="tab" data-tab="manual" type="button">User manual</button>
+    <button id="manual-tab-label" class="tab" data-tab="manual" type="button">User manual</button>
   </nav>
 
   <main>
@@ -139,12 +139,12 @@
           <div class="section-heading"><div><p class="kicker">Only offered when requirements match</p><h3>Contextual actions</h3></div><button id="add-context-action" class="button secondary" type="button">Add action</button></div>
           <label>Scene<select id="context-scene"></select></label>
           <div id="context-action-list" class="context-action-list"></div>
-          <p class="help">Labels use the complete twelve-character action row. Actions can test flags or object locations, change flags, take an object, or remove a consumed object.</p>
+          <p class="help">Labels use the complete twelve-character action row. Actions can test flags or object locations, change flags, take an object, or remove a consumed object. An item inside a container satisfies Must be here only while that container is here and open.</p>
         </article>
       </section>
 
       <section class="panel" data-panel="objects">
-        <div class="page-heading"><div><p class="kicker">Portable story items</p><h2>Objects and inventory</h2><p>Each object uses one byte of Atari RAM. Its location is a room, the player's inventory, or removed from play.</p></div><button id="add-object" class="button secondary" type="button">Add object</button></div>
+        <div class="page-heading"><div><p class="kicker">Items and containers</p><h2>Objects and inventory</h2><p>Each portable item or container uses one byte of Atari RAM. Portable items can begin in a room, inside a container, carried, or removed.</p></div><button id="add-object" class="button secondary" type="button">Add object</button></div>
         <article class="card">
           <div class="section-heading"><div><p class="kicker">Up to eight objects</p><h3>Object definitions</h3></div><span id="object-ram">0 / 8 RAM bytes</span></div>
           <div id="object-list" class="object-list"></div>
@@ -240,7 +240,7 @@
       </section>
 
       <section class="panel manual" data-panel="manual">
-        <div class="page-heading"><div><p class="kicker">Author's guide</p><h2>User manual</h2><p>Everything needed to create, test, save, and build a text adventure inside this browser editor.</p></div></div>
+        <div class="page-heading manual-heading"><div><p id="manual-heading-kicker" class="kicker">Author's guide</p><h2 id="manual-heading-title">User manual</h2><p id="manual-heading-description">Everything needed to create, test, save, and build a text adventure inside this browser editor.</p></div><label class="manual-language"><span id="manual-language-label">Language</span><select id="manual-language-select" aria-label="Manual language"><option value="en">English</option><option value="it">Italiano</option></select></label></div>
         <div class="manual-layout">
           <article class="card manual-card" data-manual-guide="workflow">
             <p class="kicker">Recommended workflow</p><h3>Start your adventure</h3>
@@ -261,7 +261,7 @@
           </article>
           <article class="card manual-card" data-manual-guide="navigation">
             <p class="kicker">Multiple pages</p><h3>NEXT and movement overrides</h3>
-            <ul><li><strong>NEXT</strong> links to another scene in the same room. Choose <strong>End continuation</strong> when there is no next page.</li><li>NEXT chains should finish rather than loop; the editor warns about continuation cycles.</li><li>Movement normally uses the room's exits. Open <strong>Optional movement overrides</strong> only when this particular scene needs a different destination or no exit.</li><li>LOOK returns to the room description currently selected by its variant rules.</li><li>Entering a room through movement always resolves its primary or conditional scene, not an arbitrary continuation page.</li></ul>
+            <ul><li><strong>NEXT</strong> links to another scene in the same room. When a link exists, NEXT is initially selected after pressing Fire. Choose <strong>End continuation</strong> when there is no next page.</li><li>NEXT chains should finish rather than loop; the editor warns about continuation cycles.</li><li>Movement normally uses the room's exits. Open <strong>Optional movement overrides</strong> only when this particular scene needs a different destination or no exit.</li><li>LOOK returns to the room's primary or currently matching conditional scene, including from a later continuation page.</li><li>Entering a room through movement always resolves its primary or conditional scene, not an arbitrary continuation page.</li></ul>
           </article>
           <article class="card manual-card" data-manual-guide="endings">
             <p class="kicker">Winning and losing</p><h3>Ending scenes</h3>
@@ -279,16 +279,21 @@
           </article>
           <article class="card manual-card" data-manual-guide="objects">
             <p class="kicker">Inventory</p><h3>Objects</h3>
-            <ul><li>Up to eight objects are supported; each consumes one byte of Atari RAM.</li><li><strong>Object ID</strong> is the unique internal name. <strong>Inventory name</strong> is the uppercase label shown to the player and is limited to 12 characters.</li><li><strong>Initial location</strong> can be a room, <strong>Carried initially</strong>, or <strong>Removed initially</strong>.</li><li>An object in a room can satisfy a contextual action's <strong>Must be here</strong> requirement. A carried object can satisfy <strong>Must be carried</strong>.</li><li>An object cannot be deleted while a contextual action still refers to it.</li></ul>
+            <ul><li>Up to eight portable items and containers are supported in total; each consumes one byte of Atari RAM.</li><li><strong>Object ID</strong> is the unique internal name. <strong>Display name</strong> is limited to 12 characters and is also the inventory label for portable items.</li><li>A portable item's <strong>Initial location</strong> can be a room, inside a container, carried, or removed. A container must begin in a room.</li><li>A container needs an open-state flag and may have a locked-state flag. Their initial flag values determine whether it starts open or locked.</li><li>An item inside a container satisfies <strong>Must be here</strong> only while the container is in the current room and its open flag is set.</li><li>Create OPEN, CLOSE, and optional UNLOCK contextual actions using the container's flags. Closing it hides its remaining contents without moving them.</li></ul>
           </article>
           <article class="card manual-card" data-manual-guide="contextual">
             <p class="kicker">Custom verbs</p><h3>Contextual actions</h3>
-            <ul><li>Choose a scene and click <strong>Add action</strong>. Its cartridge label is the verb shown on the Atari action row, up to 12 characters.</li><li><strong>Require set/clear</strong>, <strong>Must be carried</strong>, and <strong>Must be here</strong> determine when the action is offered.</li><li>The action can SET, CLEAR, or TOGGLE flags, <strong>Take object</strong> into inventory, and/or <strong>Remove object</strong> from play.</li><li>After the action runs, the current room's variant rules are evaluated again, allowing the displayed description to change immediately.</li></ul>
+            <ul><li>Choose a scene and click <strong>Add action</strong>. Its cartridge label is the verb shown on the Atari action row, up to 12 characters.</li><li><strong>Require set/clear</strong>, <strong>Must be carried</strong>, and <strong>Must be here</strong> determine when the action is offered.</li><li>The action can SET, CLEAR, or TOGGLE flags, <strong>Take object</strong> into inventory, and/or <strong>Remove object</strong> from play.</li><li><strong>After action</strong> can stay in the current room, enter another room, or show a specific scene.</li><li>For containers, OPEN normally requires its open and locked flags clear, CLOSE requires its open flag set, and UNLOCK requires its locked flag set plus a carried key.</li><li>When no destination is selected, the current room's variant rules are evaluated again.</li></ul>
             <p>Example: TAKE KEY requires the key to be here and takes it. UNLOCK requires the key to be carried, sets <code>door_open</code>, and can remove the key if it is consumed.</p>
+          </article>
+          <article class="card manual-card" data-manual-guide="interactions">
+            <p class="kicker">Features working together</p><h3>Building complete interactions</h3>
+            <ul><li>Rooms and scenes provide location and text.</li><li>Flags and object locations remember what happened.</li><li>Contextual actions check requirements, change state, and optionally move to another room or scene.</li><li>Variants and appearance presets show the result of those changes.</li></ul>
+            <p>Includes a complete chest, key, locked gate, destination, and returning-to-the-open-gate example.</p>
           </article>
           <article class="card manual-card" data-manual-guide="playtest">
             <p class="kicker">Fast iteration</p><h3>Playtest</h3>
-            <ul><li>Use the action buttons to test movement, NEXT chains, inventory, and contextual actions without building a ROM.</li><li><strong>Reset to start room</strong> restores every flag and object to its configured initial state.</li><li>The Flag debugger can force flags on or off to inspect room variants.</li><li>The Object debugger can move an item among rooms, inventory, and removed state to test requirements.</li><li>Test both successful and unavailable actions, every room entry, and every conditional description before building.</li></ul>
+            <ul><li>Use the action buttons to test movement, NEXT chains, inventory, containers, and contextual actions without building a ROM.</li><li><strong>Reset to start room</strong> restores every flag and object to its configured initial state.</li><li>The Flag debugger can force flags on or off to inspect room variants and open or lock containers.</li><li>The Object debugger can move a portable item among rooms, containers, inventory, and removed state to test requirements.</li><li>Test both successful and unavailable actions, every room entry, and every conditional description before building.</li></ul>
           </article>
           <article class="card manual-card" data-manual-guide="appearance">
             <p class="kicker">Cartridge display</p><h3>Colours and border</h3>
@@ -305,7 +310,7 @@
           </article>
           <article class="card manual-card" data-manual-guide="controls">
             <p class="kicker">Atari controls</p><h3>Playing the cartridge</h3>
-            <ul><li>Joystick directions attempt NORTH, EAST, SOUTH, or WEST.</li><li>Fire enters action-selection mode.</li><li>Move the joystick while selecting to cycle through LOOK, NEXT, INVENTORY, and available contextual actions.</li><li>Press Fire to perform the selected action.</li><li>Release the joystick and Fire between inputs so each press is detected cleanly.</li></ul>
+            <ul><li>Joystick directions attempt NORTH, EAST, SOUTH, or WEST.</li><li>Fire enters action-selection mode. NEXT is selected first when the current scene has a continuation; otherwise LOOK is selected.</li><li>Move the joystick while selecting to cycle through LOOK, NEXT, INVENTORY, and available contextual actions.</li><li>Press Fire to perform the selected action.</li><li>Release the joystick and Fire between inputs so each press is detected cleanly.</li></ul>
           </article>
         </div>
         <article id="manual-detail" class="card manual-detail hidden" aria-live="polite">
@@ -321,6 +326,7 @@
 
   <script src="static_mode.js"></script>
   <script src="manual_guides.js"></script>
+  <script src="manual_guides_it.js"></script>
   <script src="story_compiler.js"></script>
   <script src="app.js"></script>
   <script src="source_bundle.js"></script>

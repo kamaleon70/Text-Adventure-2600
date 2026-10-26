@@ -37,6 +37,8 @@ BANK_4          equ $80
 BANK_5          equ $A0
 BANK_6          equ $C0
 BANK_7          equ $E0
+CONTAINER_LOCATION_BASE equ $F1 ; $F1-$F8 encode inside object slots 0-7
+CONTAINER_LOCATION_END  equ $F9
 
 ; RAM: only $80-$E1 is used, leaving $E2-$FF for stack headroom.
         seg.u Variables
@@ -651,7 +653,18 @@ ReadControls subroutine
         bmi .done
         lda #1
         sta ControlMode
+.selectInitialAction
+        ; Continuation text is the most likely next choice. Prefer NEXT when
+        ; this scene links to another page; otherwise begin with LOOK.
+        lda #ACTION_NEXT
+        jsr LoadActionDestination
+        cmp #NO_EXIT
+        beq .selectInitialLook
+        lda #ACTION_NEXT
+        bne .storeInitialAction
+.selectInitialLook
         lda #ACTION_LOOK
+.storeInitialAction
         sta SelectedAction
         jmp .consume
 
@@ -815,6 +828,8 @@ FindContextAction subroutine
         iny
         cmp #$FF
         bne .skipObjectEffects
+        ; One encoded destination byte follows every contextual-action record.
+        iny
         dec LoopCount
         jmp .record
 .found
@@ -865,7 +880,31 @@ ContextActionAvailable subroutine
         ldx CurrentScene
         cmp PageRoomLocations,x
         beq .objectCondition
+        ; A portable object may instead be inside a container. Container
+        ; location codes occupy the otherwise-unused $F1-$F8 range: bank 7
+        ; uses only pages 0-16, ending at $F0. Contents count as "here" only
+        ; when their container is in this room and its open flag is set.
+        lda Temp
+        cmp #CONTAINER_LOCATION_BASE
+        bcc .failed
+        cmp #CONTAINER_LOCATION_END
+        bcs .failed
+        sec
+        sbc #CONTAINER_LOCATION_BASE
+        sta TempSP
+        tax
+        lda ObjectLocations,x
+        ldx CurrentScene
+        cmp PageRoomLocations,x
         bne .failed
+        ldx TempSP
+        lda ObjectContainerOpenFlags,x
+        cmp #$FF
+        beq .failed
+        sta WriteOfs
+        jsr TestFlagCondition
+        bcs .objectCondition
+        bcc .failed
 .passed
         sec
         rts
@@ -897,7 +936,7 @@ ApplyContextAction subroutine
 .objectEffect
         lda (StrPtr),y
         cmp #$FF
-        beq .done
+        beq .destination
         sta WriteOfs
         iny
         and #$3F
@@ -912,6 +951,12 @@ ApplyContextAction subroutine
 .storeObject
         sta ObjectLocations,x
         jmp .objectEffect
+.destination
+        iny
+        lda (StrPtr),y
+        cmp #NO_EXIT
+        beq .done
+        jsr ApplyDestination
 .done
         rts
 

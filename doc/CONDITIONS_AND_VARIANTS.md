@@ -1,99 +1,82 @@
-# Conditions and changing room text
+# Conditions and changing room descriptions
 
-## Target example: using a torch
+## Flags remember story facts
 
-Initial visit to the shaft:
+A flag is a persistent yes/no value. The editor supports up to 64 flags.
+Examples include:
 
-```text
-ROOM 6 SHAFT
-TOTAL DARK.
-AIR RISES
-FROM BELOW.
-```
+- `TORCH_LIT`;
+- `CHEST_OPEN`;
+- `CASTLE_UNLOCKED`;
+- `DRAGON_DEFEATED`.
 
-After taking and using a torch:
+**Initially set** determines the flag's value after power-on or Restart.
+Actions can SET, CLEAR, or TOGGLE flags while the game is running.
 
-```text
-ROOM 6 SHAFT
-TORCH LIGHT
-SHOWS A LIFT
-AND RED WIRE.
-```
+## Room variants
 
-The descriptions remain ROM pages. RAM stores only the fact that the torch is
-lit and, if portable, where the torch currently is.
+A room variant selects a different scene when its requirements match. Every
+**must be set** flag must be on, and every **must be clear** flag must be off.
+Rules are checked from top to bottom; the first matching rule wins. If none
+matches, the room's primary scene is used.
 
-## Flag storage
+Variants are resolved when:
 
-Reserve eight RAM bytes for 64 named boolean flags. The editor exposes names,
-while generated assembly uses indexes:
+- the player enters the room;
+- LOOK is performed;
+- an action changes state and stays in the current room;
+- an action destination enters that logical room.
 
-```text
-0 TORCH_LIT
-1 STORE_CRATE_OPEN
-2 FUSE_INSTALLED
-3 LAB_CARD_USED
-4 VAULT_OPEN
-```
+## Example: dark and illuminated shaft
 
-Testing, setting, and clearing a flag requires a byte index and bit mask. No
-text or flag names are stored in RAM.
+Create `TORCH_LIT`, initially clear.
 
-## Variant rules
+1. Make **Shaft - Dark** the room's primary scene.
+2. Add **Shaft - Lit** as another scene in the same room.
+3. Add a room variant selecting Shaft - Lit when `TORCH_LIT` must be set.
+4. Create a LIGHT TORCH action that SETs `TORCH_LIT`.
+5. Leave **After action** at Stay in current room.
 
-Each room can have ordered rules followed by a default scene:
+After LIGHT TORCH runs, the room is resolved again and immediately displays
+Shaft - Lit. Leaving and returning still shows the lit description because the
+flag remains set.
 
-```json
-"variants": [
-  { "when_all": ["TORCH_LIT"], "scene": "shaft_lit" }
-],
-"default_scene": "shaft_dark"
-```
+## Multiple conditions and rule priority
 
-The generator converts names to compact ROM records. The first matching rule
-wins. Early versions should support only:
+Suppose a laboratory uses `POWER_ON` and `ALARM_ON`:
 
-- all listed flags must be set;
-- all listed flags must be clear;
-- player must carry one specified object.
+1. **Laboratory - Alarm**: `POWER_ON` set and `ALARM_ON` set.
+2. **Laboratory - Powered**: `POWER_ON` set.
+3. Primary **Laboratory - Dark**: used when neither rule matches.
 
-Avoid a general expression language until real game content proves it is
-needed.
+The alarm rule must come first because it is more specific. If the powered rule
+came first, it would hide the alarm scene whenever both flags were set.
 
-## When to resolve a variant
+## Flags interacting with objects
 
-Resolve the current room description:
+Flags remember facts; object locations remember where items are. A contextual
+action can test both.
 
-- when entering a room;
-- after an interaction changes flags or objects;
-- when performing `LOOK`.
+Example: USE FUSE can require:
 
-Do not resolve it every video frame. Gameplay logic belongs in VBLANK or
-overscan, and unnecessary per-frame work makes television timing harder to
-reason about.
+- `FUSE_INSTALLED` clear;
+- Fuse carried.
 
-## Interaction result
+It can then:
 
-An interaction should be able to:
+- SET `FUSE_INSTALLED`;
+- remove Fuse from play;
+- enter the powered lift room.
 
-- set or clear a flag;
-- move one object;
-- display a result scene;
-- optionally move to another room;
-- optionally play a small sound cue.
+The flag keeps the machinery powered after the physical fuse object has been
+consumed.
 
-For example, `USE TORCH` sets `TORCH_LIT` and redisplays the current room. The
-room resolver then chooses the lit scene.
+## Testing variants
 
-## Failure text
+Use the Playtest flag debugger to force each relevant combination. Confirm:
 
-Avoid allocating a unique failure page for every rule. A small shared set is
-usually enough:
-
-- `NOT HERE.`
-- `YOU NEED IT.`
-- `IT IS LOCKED.`
-- `NOTHING HAPPENS.`
-
-These can be action-row messages or short shared scenes, depending on how long
-the message must remain visible.
+- the default scene appears when no rule matches;
+- each rule selects the intended scene;
+- more-specific rules take priority;
+- LOOK and room entry resolve the same result;
+- Restart restores the configured initial values.

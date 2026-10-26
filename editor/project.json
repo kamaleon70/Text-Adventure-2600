@@ -1,458 +1,269 @@
 {
   "version": 2,
-  "title": "Derelict Station",
-  "start_room": "room_1_dock",
+  "title": "Castle of the Two Keys",
+  "start_room": "ashen_moor",
   "appearance": {
-    "background_color": 130,
-    "border_color": 132,
+    "background_color": 2,
+    "border_color": 198,
     "text_color": 14,
     "action_text_color": 14,
-    "action_background_enabled": false,
-    "action_background_color": 36,
-    "border_style": "striped"
+    "action_background_enabled": true,
+    "action_background_color": 66,
+    "border_style": "solid"
   },
   "splash": {
-    "enabled": true,
-    "filename": "abbAssymMirror.asm",
-    "source": "\n   processor 6502\n   include \"vcs.h\"\n   include \"macro.h\"\n   SEG.U VARS\n   ORG $80\n\n; $80\nTemp                        ds 1\nPlayFieldHeightCounter      ds 1\nPlayFieldLinesCounter       ds 1\n\nkernel_lines=192\nplayfield_lines=90\nplayfield_line_height=2\npadding_lines=1\n\nplayfield_scanlines=#playfield_lines*#playfield_line_height\nremaining_lines=#kernel_lines-#playfield_scanlines-#padding_lines+2\n\n\nNO_ILLEGAL_OPCODES = 0\n\n\n  SEG CODE\n  ORG $F000\nStart:\n  CLEAN_START\n\n  lda #1\n  sta CTRLPF   ; Mirrored playfield\n\nNextFrame\n\n  VERTICAL_SYNC\n   lda #44\n   sta TIM64T\n\n; My VBLANK code\n\n\n   \n   \nWaitVBlank\n   lda INTIM\n   bne WaitVBlank ; loop until timer expires\n   sta WSYNC\n   sta VBLANK\n\n   ldx #padding_lines\nPaddingLoop\n   sta WSYNC\n   dex\n   bne PaddingLoop\n\n   ldx #playfield_lines-1\n   lda #playfield_line_height\n   sta PlayFieldHeightCounter\n\n\nPlayfieldLoop\n   sta WSYNC                       ; 3     (0)\n   lda PFColors,x                  ; 4     (4)\n   sta COLUPF                      ; 3     (7)\n   lda PF0DataA,x                  ; 4     (11)\n   sta PF0                         ; 3     (14)\n   lda PF1DataA,x                  ; 4     (18)\n   sta PF1                         ; 3     (21)\n   lda PF2DataA,x                  ; 4     (25*)\n   sta PF2                         ; 3     (28)\n   lda PF2DataB,x                  ; 4     (32)\n   tay                             ; 2     (34)\n   lda PF1DataB,x                  ; 4     (38)\n   sta PF1                         ; 3     (41)\n   lda PF0DataB,x                  ; 4     (45)\n   sty PF2                         ; 3     (48)\n   sta PF0                         ; 3     (51)\n   dec PlayFieldHeightCounter      ; 5     (56)\n   bne ____skip_new_row            ; 2/3   (58/59)\n   lda #playfield_line_height      ; 2     (60)\n   sta PlayFieldHeightCounter      ; 3     (63)\n   dex                             ; 2     (65)\n   beq ____done_playfield_rows     ; 2/3   (67)\n____skip_new_row\n   jmp PlayfieldLoop               ; 3     (70)\n\n\n\n____done_playfield_rows\n   lda #0\n   sta PF0\n   sta PF1\n   sta PF2\n   ldx #remaining_lines\nVisibleScreen\n   sta WSYNC\n   dex\n   bne VisibleScreen\n   \nSetupOS\n   lda #36\n   sta TIM64T\n   lda #2\n   sta WSYNC\n   sta VBLANK\n\n\n\n           \nWaitOverscan\n   lda INTIM\n   bne WaitOverscan\n   sta WSYNC\n   \n   jmp NextFrame\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF0DataA\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %10000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %11000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01000000\n\t.byte %11000000\n\t.byte %01000000\n\t.byte %10000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF1DataA\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01000000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11110000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %01000000\n\t.byte %00000000\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %11111110\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %10110001\n\t.byte %10101010\n\t.byte %10101010\n\t.byte %00110010\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF2DataA\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01011100\n\t.byte %01000101\n\t.byte %11001101\n\t.byte %01011101\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01110010\n\t.byte %00010010\n\t.byte %00110010\n\t.byte %01110111\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF0DataB\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %11100000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %11000000\n\t.byte %00000000\n\t.byte %10000000\n\t.byte %11000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF1DataB\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %11111100\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00001111\n\t.byte %00000111\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %10101011\n\t.byte %10011010\n\t.byte %10101010\n\t.byte %10011010\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPF2DataB\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000001\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %01001001\n\t.byte %11001001\n\t.byte %01001001\n\t.byte %01011101\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %10100100\n\t.byte %10100100\n\t.byte %01000100\n\t.byte %10101110\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\t.byte %00000000\n\n\n  if >. != >[.+(playfield_lines)]\n     align 256\n  endif\n\nPFColors\n   .byte $0E\n   .byte $0E\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $42\n   .byte $0E\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $90\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $BA\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $B4\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n   .byte $0E\n\n\n\n   ECHO ([$FFFC-.]d), \"bytes free\"\n\n   org $fffc\n   .word Start\n   .word Start\n\n\n   ",
+    "enabled": false,
+    "filename": "",
+    "source": "",
     "delay_frames": 120,
     "background_color": 0,
-    "metadata": {
-      "kernel_lines": 192,
-      "line_count": 90,
-      "line_height": 2
-    }
+    "metadata": null
   },
   "flags": [
-    {
-      "id": "DOCK_LAMP_OFF",
-      "initial": false
-    },
-    {
-      "id": "FUSE_TAKEN",
-      "initial": false
-    },
-    {
-      "id": "FUSE_INSTALLED",
-      "initial": false
-    }
+    { "id": "CHEST_OPEN", "initial": false },
+    { "id": "BRASS_TAKEN", "initial": false },
+    { "id": "CASTLE_OPEN", "initial": false },
+    { "id": "STATUE_MOVED", "initial": false },
+    { "id": "SILVER_TAKEN", "initial": false },
+    { "id": "TOWER_OPEN", "initial": false },
+    { "id": "SKULL_TOUCHED", "initial": false },
+    { "id": "CURSE_BROKEN", "initial": false }
   ],
   "objects": [
-    {
-      "id": "fuse",
-      "name": "FUSE",
-      "initial_location": "room_2_store"
-    }
+    { "id": "shrine_chest", "name": "STONE CHEST", "type": "container", "initial_location": "forest_shrine", "open_flag": "CHEST_OPEN", "locked_flag": null },
+    { "id": "brass_key", "name": "BRASS KEY", "type": "portable", "initial_location": "container:shrine_chest", "open_flag": null, "locked_flag": null },
+    { "id": "silver_key", "name": "SILVER KEY", "type": "portable", "initial_location": "statue_gallery", "open_flag": null, "locked_flag": null }
   ],
   "rooms": [
     {
-      "id": "room_1_dock",
-      "name": "Room 1 - Dock",
-      "position": {
-        "x": 64,
-        "y": 482
-      },
-      "entry_scene": "room_1_dock",
-      "exits": {
-        "north": "room_3_hall",
-        "east": "room_2_store",
-        "south": null,
-        "west": null
-      },
+      "id": "ashen_moor",
+      "name": "Ashen Moor",
+      "position": { "x": 360, "y": 800 },
+      "entry_scene": "moor_main",
+      "exits": { "north": "castle_gate", "east": "thorn_wood", "south": null, "west": null },
       "scenes": [
         {
-          "id": "room_1_dock",
-          "name": "Room 1 - Dock",
-          "bank": 1,
-          "text": [
-            "ROOM 1 DOCK",
-            "COLD STARS.",
-            "YOUR SHIP",
-            "IS SILENT.",
-            "A RED LAMP",
-            "STILL BURNS.",
-            "EXITS: N,E",
-            "",
-            "",
-            ""
-          ],
-          "next": "room_1_dock_dark",
+          "id": "moor_main",
+          "name": "Ashen Moor",
+          "bank": 2,
+          "text": ["ASHEN MOOR", "RAIN DRIFTS", "OVER BLACK", "HEATHER.", "A CASTLE", "WAITS NORTH.", "FOREST EAST", "EXITS: N,E", "", ""],
+          "next": "moor_lights",
           "exit_overrides": {},
-          "effects": {
-            "next": {
-              "set": [
-                "DOCK_LAMP_OFF"
-              ],
-              "clear": [],
-              "toggle": []
-            }
-          },
+          "ending": false,
+          "appearance_overrides": { "background_color": 194, "border_color": 198 },
+          "effects": {},
           "context_actions": []
         },
         {
-          "id": "room_1_dock_dark",
-          "name": "Dock - lamp dark",
-          "bank": 1,
-          "text": [
-            "ROOM 1 DOCK",
-            "COLD STARS.",
-            "YOUR SHIP",
-            "IS SILENT.",
-            "THE RED LAMP",
-            "IS NOW DARK.",
-            "FLAG IS SET",
-            "NEXT: RESET",
-            "EXITS: N,E",
-            ""
-          ],
-          "next": "room_1_dock",
+          "id": "moor_lights",
+          "name": "Lights on the Moor",
+          "bank": 2,
+          "text": ["FAR LIGHTS", "GLEAM IN THE", "HIGH WINDOWS", "THEN VANISH.", "COLD WIND", "WHISPERS:", "TURN BACK.", "EXITS: N,E", "", ""],
+          "next": null,
           "exit_overrides": {},
-          "effects": {
-            "next": {
-              "set": [],
-              "clear": [
-                "DOCK_LAMP_OFF"
-              ],
-              "toggle": []
-            }
-          },
+          "ending": false,
+          "appearance_overrides": { "background_color": 194, "border_color": 198 },
+          "effects": {},
           "context_actions": []
         }
       ],
-      "variants": [
-        {
-          "scene": "room_1_dock_dark",
-          "when_all": [
-            "DOCK_LAMP_OFF"
-          ],
-          "when_clear": []
-        }
-      ]
+      "variants": []
     },
     {
-      "id": "room_2_store",
-      "name": "Room 2 - Store",
-      "position": {
-        "x": 347,
-        "y": 520
-      },
-      "entry_scene": "room_2_store",
-      "exits": {
-        "north": "room_4_lab",
-        "east": null,
-        "south": null,
-        "west": "room_1_dock"
-      },
+      "id": "thorn_wood",
+      "name": "Thorn Wood",
+      "position": { "x": 640, "y": 800 },
+      "entry_scene": "wood_main",
+      "exits": { "north": null, "east": "forest_shrine", "south": null, "west": "ashen_moor" },
       "scenes": [
         {
-          "id": "room_2_store",
-          "name": "Room 2 - Store",
-          "bank": 1,
-          "text": [
-            "ROOM 2 STORE",
-            "DUSTY CRATES",
-            "LINE WALLS.",
-            "ONE IS OPEN.",
-            "INSIDE: WIRE",
-            "AND A FUSE.",
-            "TAKE FUSE",
-            "EXITS: W,N",
-            "",
-            ""
-          ],
+          "id": "wood_main",
+          "name": "Thorn Wood",
+          "bank": 2,
+          "text": ["THORN WOOD", "WET BRANCHES", "CLOSE BEHIND", "YOUR STEPS.", "A STONE PATH", "LEADS EAST.", "MOOR WEST.", "EXITS: E,W", "", ""],
+          "next": "wood_whispers",
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 210, "border_color": 214 },
+          "effects": {},
+          "context_actions": []
+        },
+        {
+          "id": "wood_whispers",
+          "name": "Whispers in the Wood",
+          "bank": 2,
+          "text": ["NO BIRDSONG", "AMONG THESE", "OLD TREES.", "SOMETHING", "MOVES BEYOND", "THE THORNS.", "THE PATH IS", "STILL CLEAR.", "EXITS: E,W", ""],
           "next": null,
           "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 210, "border_color": 214 },
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "forest_shrine",
+      "name": "Forest Shrine",
+      "position": { "x": 920, "y": 800 },
+      "entry_scene": "shrine_closed",
+      "exits": { "north": null, "east": null, "south": null, "west": "thorn_wood" },
+      "scenes": [
+        {
+          "id": "shrine_closed",
+          "name": "Shrine - Chest Closed",
+          "bank": 2,
+          "text": ["OLD SHRINE", "MOSS COVERS", "STONE CHEST", "ITS LID IS", "SHUT TIGHT.", "PATH WEST.", "EXIT: W", "", "", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 210, "border_color": 214 },
           "effects": {},
           "context_actions": [
             {
-              "label": "TAKE FUSE",
+              "label": "OPEN CHEST",
               "when_all": [],
-              "when_clear": [
-                "FUSE_TAKEN"
-              ],
+              "when_clear": ["CHEST_OPEN"],
               "requires_carried": null,
-              "requires_here": "fuse",
-              "effects": {
-                "set": [
-                  "FUSE_TAKEN"
-                ],
-                "clear": [],
-                "toggle": [],
-                "take_object": "fuse",
-                "remove_object": null
-              }
+              "requires_here": "shrine_chest",
+              "destination": "scene:shrine_open",
+              "effects": { "set": ["CHEST_OPEN"], "clear": [], "toggle": [], "take_object": null, "remove_object": null }
             }
           ]
         },
         {
-          "id": "room_2_store_empty",
-          "name": "Store - fuse taken",
-          "bank": 1,
-          "text": [
-            "ROOM 2 STORE",
-            "DUSTY CRATES",
-            "LINE WALLS.",
-            "ONE IS OPEN.",
-            "ONLY WIRE",
-            "REMAINS.",
-            "FUSE TAKEN.",
-            "EXITS: W,N",
-            "",
-            ""
-          ],
+          "id": "shrine_open",
+          "name": "Shrine - Key Revealed",
+          "bank": 2,
+          "text": ["OLD SHRINE", "THE CHEST IS", "NOW OPEN.", "A BRASS KEY", "LIES INSIDE", "PATH WEST.", "EXIT: W", "", "", ""],
           "next": null,
           "exit_overrides": {},
-          "effects": {},
-          "context_actions": []
-        }
-      ],
-      "variants": [
-        {
-          "scene": "room_2_store_empty",
-          "when_all": [
-            "FUSE_TAKEN"
-          ],
-          "when_clear": []
-        }
-      ]
-    },
-    {
-      "id": "room_3_hall",
-      "name": "Room 3 - Hall",
-      "position": {
-        "x": 90,
-        "y": 340
-      },
-      "entry_scene": "room_3_hall",
-      "exits": {
-        "north": "room_5_shrine",
-        "east": "room_4_lab",
-        "south": "room_1_dock",
-        "west": null
-      },
-      "scenes": [
-        {
-          "id": "room_3_hall",
-          "name": "Room 3 - Hall",
-          "bank": 1,
-          "text": [
-            "ROOM 3 HALL",
-            "A DARK HALL.",
-            "MARKS CROSS",
-            "THE FLOOR.",
-            "YOU HEAR",
-            "SLOW STEPS.",
-            "EXITS: S,E,N",
-            "",
-            "",
-            ""
-          ],
-          "next": null,
-          "exit_overrides": {},
-          "effects": {},
-          "context_actions": []
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "room_4_lab",
-      "name": "Room 4 - Lab",
-      "position": {
-        "x": 435,
-        "y": 295
-      },
-      "entry_scene": "room_4_lab",
-      "exits": {
-        "north": null,
-        "east": "room_6_shaft",
-        "south": "room_2_store",
-        "west": "room_3_hall"
-      },
-      "scenes": [
-        {
-          "id": "room_4_lab",
-          "name": "Room 4 - Lab",
-          "bank": 1,
-          "text": [
-            "ROOM 4 LAB",
-            "GLASS TUBES",
-            "ARE BROKEN.",
-            "A DEAD TECH",
-            "HAS A CARD.",
-            "TAKE CARD",
-            "EXITS: W,S,E",
-            "",
-            "",
-            ""
-          ],
-          "next": null,
-          "exit_overrides": {},
-          "effects": {},
-          "context_actions": []
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "room_5_shrine",
-      "name": "Room 5 - Shrine",
-      "position": {
-        "x": 90,
-        "y": 180
-      },
-      "entry_scene": "room_5_shrine",
-      "exits": {
-        "north": null,
-        "east": "room_7_core",
-        "south": "room_3_hall",
-        "west": null
-      },
-      "scenes": [
-        {
-          "id": "room_5_shrine",
-          "name": "Room 5 - Shrine",
-          "bank": 1,
-          "text": [
-            "R5 SHRINE",
-            "BLACK STONE",
-            "FILLS ROOM.",
-            "A SYMBOL",
-            "GLOWS BLUE.",
-            "IT FEELS",
-            "SEEMS ALIVE.",
-            "EXITS: S,E",
-            "",
-            ""
-          ],
-          "next": null,
-          "exit_overrides": {},
-          "effects": {},
-          "context_actions": []
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "room_6_shaft",
-      "name": "Room 6 - Shaft",
-      "position": {
-        "x": 699,
-        "y": 187
-      },
-      "entry_scene": "room_6_shaft",
-      "exits": {
-        "north": "room_7_core",
-        "east": null,
-        "south": "room_8_flood",
-        "west": "room_4_lab"
-      },
-      "scenes": [
-        {
-          "id": "room_6_shaft",
-          "name": "Room 6 - Shaft",
-          "bank": 1,
-          "text": [
-            "ROOM 6 SHAFT",
-            "A DEEP SHAFT",
-            "DROPS BELOW.",
-            "LIFT WAITS.",
-            "NO POWER.",
-            "USE FUSE",
-            "EXITS: W,N,S",
-            "",
-            "",
-            ""
-          ],
-          "next": null,
-          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 210, "border_color": 214 },
           "effects": {},
           "context_actions": [
             {
-              "label": "USE FUSE",
-              "when_all": [],
-              "when_clear": [
-                "FUSE_INSTALLED"
-              ],
-              "requires_carried": "fuse",
-              "requires_here": null,
-              "effects": {
-                "set": [
-                  "FUSE_INSTALLED"
-                ],
-                "clear": [],
-                "toggle": [],
-                "take_object": null,
-                "remove_object": "fuse"
-              }
+              "label": "CLOSE CHEST",
+              "when_all": ["CHEST_OPEN"],
+              "when_clear": [],
+              "requires_carried": null,
+              "requires_here": "shrine_chest",
+              "destination": "scene:shrine_closed",
+              "effects": { "set": [], "clear": ["CHEST_OPEN"], "toggle": [], "take_object": null, "remove_object": null }
+            },
+            {
+              "label": "TAKE BRASS",
+              "when_all": ["CHEST_OPEN"],
+              "when_clear": ["BRASS_TAKEN"],
+              "requires_carried": null,
+              "requires_here": "brass_key",
+              "destination": "scene:shrine_empty",
+              "effects": { "set": ["BRASS_TAKEN"], "clear": [], "toggle": [], "take_object": "brass_key", "remove_object": null }
             }
           ]
         },
         {
-          "id": "room_6_shaft_powered",
-          "name": "Shaft - powered",
-          "bank": 1,
-          "text": [
-            "ROOM 6 SHAFT",
-            "A DEEP SHAFT",
-            "DROPS BELOW.",
-            "FUSE HUMS.",
-            "LIFT POWERED",
-            "LIFT WAITS.",
-            "EXITS: W,N,S",
-            "",
-            "",
-            ""
-          ],
+          "id": "shrine_empty",
+          "name": "Shrine - Empty Chest",
+          "bank": 2,
+          "text": ["OLD SHRINE", "THE OPEN", "CHEST IS NOW", "EMPTY.", "DARK TREES", "PRESS CLOSE.", "PATH WEST.", "EXIT: W", "", ""],
           "next": null,
           "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 210, "border_color": 214 },
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "CLOSE CHEST",
+              "when_all": ["CHEST_OPEN"],
+              "when_clear": [],
+              "requires_carried": null,
+              "requires_here": "shrine_chest",
+              "destination": "scene:shrine_closed",
+              "effects": { "set": [], "clear": ["CHEST_OPEN"], "toggle": [], "take_object": null, "remove_object": null }
+            }
+          ]
+        }
+      ],
+      "variants": [
+        { "scene": "shrine_empty", "when_all": ["CHEST_OPEN", "BRASS_TAKEN"], "when_clear": [] },
+        { "scene": "shrine_open", "when_all": ["CHEST_OPEN"], "when_clear": ["BRASS_TAKEN"] }
+      ]
+    },
+    {
+      "id": "castle_gate",
+      "name": "Castle Gate",
+      "position": { "x": 360, "y": 600 },
+      "entry_scene": "gate_locked",
+      "exits": { "north": null, "east": null, "south": "ashen_moor", "west": null },
+      "scenes": [
+        {
+          "id": "gate_locked",
+          "name": "Castle Gate - Locked",
+          "bank": 2,
+          "text": ["CASTLE GATE", "IRON DOORS", "BLOCK ENTRY", "A BRASS LOCK", "WAITS HERE.", "MOOR SOUTH.", "EXIT: S", "", "", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 66, "border_color": 68 },
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "USE BRASS",
+              "when_all": [],
+              "when_clear": ["CASTLE_OPEN"],
+              "requires_carried": "brass_key",
+              "requires_here": null,
+              "effects": { "set": ["CASTLE_OPEN"], "clear": [], "toggle": [], "take_object": null, "remove_object": "brass_key" }
+            }
+          ]
+        },
+        {
+          "id": "gate_open",
+          "name": "Castle Gate - Open",
+          "bank": 2,
+          "text": ["CASTLE GATE", "THE LOCK HAS", "FALLEN AWAY.", "DOORS STAND", "OPEN AT LAST", "HALL NORTH.", "MOOR SOUTH.", "EXITS: N,S", "", ""],
+          "next": null,
+          "exit_overrides": { "north": "great_hall" },
+          "ending": false,
+          "appearance_overrides": { "background_color": 66, "border_color": 68 },
           "effects": {},
           "context_actions": []
         }
       ],
       "variants": [
-        {
-          "scene": "room_6_shaft_powered",
-          "when_all": [
-            "FUSE_INSTALLED"
-          ],
-          "when_clear": []
-        }
+        { "scene": "gate_open", "when_all": ["CASTLE_OPEN"], "when_clear": [] }
       ]
     },
     {
-      "id": "room_7_core",
-      "name": "Room 7 - Core",
-      "position": {
-        "x": 424,
-        "y": 48
-      },
-      "entry_scene": "room_7_core",
-      "exits": {
-        "north": null,
-        "east": "room_9_bridge",
-        "south": "room_6_shaft",
-        "west": "room_5_shrine"
-      },
+      "id": "great_hall",
+      "name": "Great Hall",
+      "position": { "x": 360, "y": 400 },
+      "entry_scene": "hall_main",
+      "exits": { "north": null, "east": "old_library", "south": "castle_gate", "west": "statue_gallery" },
       "scenes": [
         {
-          "id": "room_7_core",
-          "name": "Room 7 - Core",
-          "bank": 1,
-          "text": [
-            "ROOM 7 CORE",
-            "THE CORE",
-            "BEATS LIKE",
-            "A HEART.",
-            "A SHADOW",
-            "STIRS THERE.",
-            "EXITS: W,S,E",
-            "",
-            "",
-            ""
-          ],
+          "id": "hall_main",
+          "name": "Great Hall",
+          "bank": 2,
+          "text": ["GREAT HALL", "TORN BANNERS", "HANG ABOVE", "A LONG TABLE", "DUST HIDES", "FOOTPRINTS.", "EXITS: E,S,W", "", "", ""],
+          "next": "hall_tracks",
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 4, "border_color": 6 },
+          "effects": {},
+          "context_actions": []
+        },
+        {
+          "id": "hall_tracks",
+          "name": "Great Hall - Tracks",
+          "bank": 2,
+          "text": ["FOOTPRINTS", "CROSS DUST", "THEN END AT", "WEST WALL", "A LIBRARY", "LIES EAST.", "GATE SOUTH.", "EXITS: E,S,W", "", ""],
           "next": null,
           "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 4, "border_color": 6 },
           "effects": {},
           "context_actions": []
         }
@@ -460,38 +271,100 @@
       "variants": []
     },
     {
-      "id": "room_8_flood",
-      "name": "Room 8 - Flood",
-      "position": {
-        "x": 669,
-        "y": 496
-      },
-      "entry_scene": "room_8_flood",
-      "exits": {
-        "north": "room_6_shaft",
-        "east": "room_10_vault",
-        "south": null,
-        "west": null
-      },
+      "id": "statue_gallery",
+      "name": "Statue Gallery",
+      "position": { "x": 80, "y": 400 },
+      "entry_scene": "gallery_main",
+      "exits": { "north": null, "east": "great_hall", "south": null, "west": null },
       "scenes": [
         {
-          "id": "room_8_flood",
-          "name": "Room 8 - Flood",
+          "id": "gallery_main",
+          "name": "Statue Gallery",
           "bank": 2,
-          "text": [
-            "ROOM 8 FLOOD",
-            "BLACK WATER",
-            "FILLS FLOOR.",
-            "SOMETHING",
-            "MOVES BELOW.",
-            "A HATCH",
-            "IS EAST.",
-            "EXITS: N,E",
-            "",
-            ""
-          ],
+          "text": ["STATUE HALL", "STONE GUARDS", "LINE WALLS.", "ONE STATUE", "FACES ASIDE.", "WRONG WAY", "HALL EAST.", "EXIT: E", "", ""],
           "next": null,
           "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 4, "border_color": 6 },
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "MOVE STATUE",
+              "when_all": [],
+              "when_clear": ["STATUE_MOVED"],
+              "requires_carried": null,
+              "requires_here": null,
+              "effects": { "set": ["STATUE_MOVED"], "clear": [], "toggle": [], "take_object": null, "remove_object": null }
+            }
+          ]
+        },
+        {
+          "id": "gallery_key",
+          "name": "Gallery - Silver Key",
+          "bank": 2,
+          "text": ["STATUE MOVED", "A HIDDEN KEY", "SHINES BELOW", "IT IS SILVER", "AND ICE COLD", "HALL EAST.", "EXIT: E", "", "", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 4, "border_color": 6 },
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "TAKE SILVER",
+              "when_all": ["STATUE_MOVED"],
+              "when_clear": ["SILVER_TAKEN"],
+              "requires_carried": null,
+              "requires_here": "silver_key",
+              "effects": { "set": ["SILVER_TAKEN"], "clear": [], "toggle": [], "take_object": "silver_key", "remove_object": null }
+            }
+          ]
+        },
+        {
+          "id": "gallery_empty",
+          "name": "Gallery - Empty Niche",
+          "bank": 2,
+          "text": ["STATUE MOVED", "THE SMALL", "HIDDEN NICHE", "IS EMPTY.", "STONE GUARDS", "WATCH IN", "SILENCE.", "HALL EAST.", "EXIT: E", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 4, "border_color": 6 },
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": [
+        { "scene": "gallery_empty", "when_all": ["STATUE_MOVED", "SILVER_TAKEN"], "when_clear": [] },
+        { "scene": "gallery_key", "when_all": ["STATUE_MOVED"], "when_clear": ["SILVER_TAKEN"] }
+      ]
+    },
+    {
+      "id": "old_library",
+      "name": "Old Library",
+      "position": { "x": 640, "y": 400 },
+      "entry_scene": "library_main",
+      "exits": { "north": "low_dungeon", "east": "tower_door", "south": null, "west": "great_hall" },
+      "scenes": [
+        {
+          "id": "library_main",
+          "name": "Old Library",
+          "bank": 2,
+          "text": ["OLD LIBRARY", "ROTTEN BOOKS", "FILL TALL", "SHELVES.", "A COLD DRAFT", "RISES BELOW", "HALL WEST.", "NORTH EAST", "AND WEST.", ""],
+          "next": "library_warning",
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 34, "border_color": 38 },
+          "effects": {},
+          "context_actions": []
+        },
+        {
+          "id": "library_warning",
+          "name": "Library Warning",
+          "bank": 2,
+          "text": ["A TORN BOOK", "BEARS ONE", "A WARNING:", "THE SKULL", "BELOW KNOWS", "ONLY HUNGER.", "THE TOWER", "WAITS EAST.", "EXITS: N,E,W", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 34, "border_color": 38 },
           "effects": {},
           "context_actions": []
         }
@@ -499,38 +372,124 @@
       "variants": []
     },
     {
-      "id": "room_9_bridge",
-      "name": "Room 9 - Bridge",
-      "position": {
-        "x": 884,
-        "y": 38
-      },
-      "entry_scene": "room_9_bridge",
-      "exits": {
-        "north": null,
-        "east": null,
-        "south": "room_10_vault",
-        "west": "room_7_core"
-      },
+      "id": "low_dungeon",
+      "name": "Low Dungeon",
+      "position": { "x": 640, "y": 160 },
+      "entry_scene": "dungeon_main",
+      "exits": { "north": null, "east": null, "south": "old_library", "west": null },
       "scenes": [
         {
-          "id": "room_9_bridge",
-          "name": "Room 9 - Bridge",
+          "id": "dungeon_main",
+          "name": "Low Dungeon",
           "bank": 2,
-          "text": [
-            "R9 BRIDGE",
-            "DEAD SCREENS",
-            "FACE YOU.",
-            "USE CARD",
-            "ONE SCREEN",
-            "SHOWS VAULT.",
-            "EXITS: W,S",
-            "",
-            "",
-            ""
-          ],
+          "text": ["LOW DUNGEON", "CHAINS MOVE.", "WITHOUT WIND", "BLACK SKULL", "RESTS HERE.", "STAIRS SOUTH", "EXIT: S", "", "", ""],
           "next": null,
           "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 64, "border_color": 66, "text_color": 70 },
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "TOUCH SKULL",
+              "when_all": [],
+              "when_clear": ["SKULL_TOUCHED"],
+              "requires_carried": null,
+              "requires_here": null,
+              "effects": { "set": ["SKULL_TOUCHED"], "clear": [], "toggle": [], "take_object": null, "remove_object": null }
+            }
+          ]
+        },
+        {
+          "id": "dungeon_death",
+          "name": "Ending - The Hungry Skull",
+          "bank": 3,
+          "text": ["THE SKULL", "OPENS ITS", "DEAD EYES.", "GREEN FIRE", "FILLS YOUR", "FADING SIGHT", "YOU ARE LOST", "FOREVER.", "", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": true,
+          "appearance_overrides": { "background_color": 64, "border_color": 66, "text_color": 70, "action_background_enabled": true, "action_background_color": 66 },
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": [
+        { "scene": "dungeon_death", "when_all": ["SKULL_TOUCHED"], "when_clear": [] }
+      ]
+    },
+    {
+      "id": "tower_door",
+      "name": "Tower Door",
+      "position": { "x": 920, "y": 400 },
+      "entry_scene": "tower_locked",
+      "exits": { "north": null, "east": null, "south": null, "west": "old_library" },
+      "scenes": [
+        {
+          "id": "tower_locked",
+          "name": "Tower Door - Locked",
+          "bank": 3,
+          "text": ["TOWER DOOR", "SILVER LOCK", "SEALS ENTRY.", "COLD LIGHT", "SHINES THERE", "LIBRARY WEST", "EXIT: W", "", "", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 130, "border_color": 134 },
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "USE SILVER",
+              "when_all": [],
+              "when_clear": ["TOWER_OPEN"],
+              "requires_carried": "silver_key",
+              "requires_here": null,
+              "destination": "room:tower_stairs",
+              "effects": { "set": ["TOWER_OPEN"], "clear": [], "toggle": [], "take_object": null, "remove_object": "silver_key" }
+            }
+          ]
+        },
+        {
+          "id": "tower_open",
+          "name": "Tower Door - Open",
+          "bank": 3,
+          "text": ["TOWER DOOR", "THE SILVER", "LOCK IS GONE", "STAIRS CLIMB", "INTO DARK.", "LIBRARY WEST", "EXITS: N,W", "", "", ""],
+          "next": null,
+          "exit_overrides": { "north": "tower_stairs" },
+          "ending": false,
+          "appearance_overrides": { "background_color": 130, "border_color": 134 },
+          "effects": {},
+          "context_actions": []
+        }
+      ],
+      "variants": [
+        { "scene": "tower_open", "when_all": ["TOWER_OPEN"], "when_clear": [] }
+      ]
+    },
+    {
+      "id": "tower_stairs",
+      "name": "Tower Stairs",
+      "position": { "x": 920, "y": 160 },
+      "entry_scene": "stairs_main",
+      "exits": { "north": "crown_room", "east": null, "south": "tower_door", "west": null },
+      "scenes": [
+        {
+          "id": "stairs_main",
+          "name": "Tower Stairs",
+          "bank": 3,
+          "text": ["TOWER STAIRS", "STEPS CLIMB", "INTO DARK", "THUNDER", "SHAKES STONE", "DOOR SOUTH.", "EXITS: N,S", "", "", ""],
+          "next": "stairs_portraits",
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 130, "border_color": 134 },
+          "effects": {},
+          "context_actions": []
+        },
+        {
+          "id": "stairs_portraits",
+          "name": "Tower Portraits",
+          "bank": 3,
+          "text": ["FADED FACES", "WATCH FROM", "OLD FRAMES", "EACH WEARS", "ONE CROWN", "A COLD GLOW", "WAITS ABOVE.", "EXITS: N,S", "", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 130, "border_color": 134 },
           "effects": {},
           "context_actions": []
         }
@@ -538,82 +497,49 @@
       "variants": []
     },
     {
-      "id": "room_10_vault",
-      "name": "Room 10 - Vault",
-      "position": {
-        "x": 996,
-        "y": 385
-      },
-      "entry_scene": "room_10_vault",
-      "exits": {
-        "north": "room_9_bridge",
-        "east": null,
-        "south": null,
-        "west": "room_8_flood"
-      },
+      "id": "crown_room",
+      "name": "Crown Room",
+      "position": { "x": 920, "y": 20 },
+      "entry_scene": "crown_main",
+      "exits": { "north": null, "east": null, "south": "tower_stairs", "west": null },
       "scenes": [
         {
-          "id": "room_10_vault",
-          "name": "Room 10 - Vault",
-          "bank": 2,
-          "text": [
-            "ROOM10 VAULT",
-            "THE VAULT",
-            "IS OPEN.",
-            "A BLACK GEM",
-            "RESTS HERE.",
-            "TAKE GEM",
-            "THEN ESCAPE.",
-            "EXITS: W,N",
-            "",
-            ""
-          ],
+          "id": "crown_main",
+          "name": "Crown Room",
+          "bank": 3,
+          "text": ["CROWN ROOM", "MOONLIGHT", "FALLS ACROSS", "A GOLD CROWN", "ON A PLINTH", "STAIRS SOUTH", "EXIT: S", "", "", ""],
           "next": null,
           "exit_overrides": {},
+          "ending": false,
+          "appearance_overrides": { "background_color": 34, "border_color": 38, "text_color": 46 },
+          "effects": {},
+          "context_actions": [
+            {
+              "label": "TAKE CROWN",
+              "when_all": [],
+              "when_clear": ["CURSE_BROKEN"],
+              "requires_carried": null,
+              "requires_here": null,
+              "effects": { "set": ["CURSE_BROKEN"], "clear": [], "toggle": [], "take_object": null, "remove_object": null }
+            }
+          ]
+        },
+        {
+          "id": "crown_victory",
+          "name": "Ending - Curse Broken",
+          "bank": 3,
+          "text": ["YOU LIFT THE", "OLD CROWN.", "THE CASTLE", "WAKES GOLD.", "THE CURSE IS", "BROKEN.", "YOU HAVE WON", "", "", ""],
+          "next": null,
+          "exit_overrides": {},
+          "ending": true,
+          "appearance_overrides": { "background_color": 32, "border_color": 46, "text_color": 30, "action_text_color": 30, "action_background_enabled": true, "action_background_color": 38 },
           "effects": {},
           "context_actions": []
         }
       ],
-      "variants": []
-    },
-    {
-      "id": "page_11",
-      "name": "Test Room",
-      "position": {
-        "x": 269,
-        "y": 620
-      },
-      "entry_scene": "page_11",
-      "exits": {
-        "north": null,
-        "east": null,
-        "south": null,
-        "west": null
-      },
-      "scenes": [
-        {
-          "id": "page_11",
-          "name": "Test Room",
-          "bank": 2,
-          "text": [
-            "TEST",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            ""
-          ],
-          "next": null,
-          "exit_overrides": {},
-          "effects": {},
-          "context_actions": []
-        }
-      ],
-      "variants": []
+      "variants": [
+        { "scene": "crown_victory", "when_all": ["CURSE_BROKEN"], "when_clear": [] }
+      ]
     }
   ]
 }

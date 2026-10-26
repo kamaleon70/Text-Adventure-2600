@@ -1,3 +1,5 @@
 ; GENERATED renderer strings - F4 BANK 1
         align $100
-ObjectName0 dc.b "FUSE[[[[[[[["
+ObjectName0 dc.b "STONE[CHEST["
+ObjectName1 dc.b "BRASS[KEY[[["
+ObjectName2 dc.b "SILVER[KEY[["

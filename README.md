@@ -5,7 +5,7 @@ Atari 2600 text adventures. Its renderer began with Steven E. Hugg's CC0
 `tinyfonts2.a` example. Release and licensing details are in `LICENSING.md`,
 `ROM_OUTPUT_EXCEPTION.md`, and `NOTICE.md`.
 
-Current editor version: **0.5 beta**.
+Current editor version: **0.6 beta**.
 
 Each scene has ten rows of 12 characters. The engine owns the eleventh row for
 movement, LOOK/NEXT, inventory, and contextual actions.
@@ -25,7 +25,7 @@ starting port, add—for example—`-Port 9000`. The editor provides:
 
 - a draggable logical-room map with primary and continuation scenes;
 - room exits, per-scene overrides, and same-room NEXT links;
-- 64 persistent flags, eight portable objects, conditional descriptions, and contextual actions;
+- 64 persistent flags, eight portable items or containers, conditional descriptions, and contextual actions with optional room or scene destinations;
 - configurable Atari background, border, text, and action-row colours, with reusable room presets and per-scene overrides;
 - an optional colour splash-screen importer;
 - browser-local draft recovery plus portable Save/Load config files;
@@ -90,7 +90,7 @@ configured delay and then waits for a released and newly pressed Fire button.
 ## Controls
 
 - Joystick directions attempt NORTH, EAST, SOUTH, or WEST directly.
-- Fire enters action mode.
+- Fire enters action mode, initially selecting NEXT when the scene has a continuation link and LOOK otherwise.
 - In action mode, move to select LOOK, NEXT, inventory, or a contextual action, then press Fire to execute it.
 - Release the joystick and Fire between inputs; held controls do not repeat.
 
@@ -112,7 +112,7 @@ flags, variants, objects, and contextual actions for any of the 102 scenes.
 ## RAM use
 
 The engine statically uses RIOT RAM `$80-$DE`. This includes the 30-byte font
-buffer, eight bytes for 64 flags, eight object locations, prepared inventory
+buffer, eight bytes for 64 flags, eight item/container locations, prepared inventory
 rows, and a 12-byte action-line buffer. `$DF-$FF` remains available for the
 6507 stack, giving 33 bytes of stack headroom.
 

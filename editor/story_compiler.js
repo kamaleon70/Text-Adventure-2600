@@ -11,6 +11,7 @@
   const ALLOWED = new Set(" )*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ");
   const ROW_WIDTH = 12;
   const MAX_PAGES_PER_BANK = 17;
+  const CONTAINER_LOCATION_BASE = 0xF1;
   const APPEARANCE_DEFAULTS = { background_color: 0x82, border_color: 0x84, text_color: 0x0E, action_text_color: 0x0E, action_background_enabled: false, action_background_color: 0x24, border_style: "striped" };
   const APPEARANCE_FIELDS = Object.keys(APPEARANCE_DEFAULTS);
   const BORDER_STYLES = { striped: 0, solid: 1 };
@@ -150,8 +151,18 @@
       if (!record || typeof record !== "object" || !ID_PATTERN.test(record.id || "")) fail(`object ${index + 1} has an invalid ID`);
       if (objectIds.has(record.id)) fail(`Duplicate object ID: ${record.id}`);
       objectIds.add(record.id);
-      return { id: record.id, name: validateCharacters(record.name || "", `${record.id}: name`), initial_location: String(record.initial_location || "") };
+      const type = record.type || "portable";
+      if (!["portable", "container"].includes(type)) fail(`${record.id}: type must be portable or container`);
+      const openFlag = target(record.open_flag, `${record.id}: open_flag`);
+      const lockedFlag = target(record.locked_flag, `${record.id}: locked_flag`);
+      if (type === "container") {
+        if (!openFlag || !flagIds.has(openFlag)) fail(`${record.id}: container open_flag must reference an existing flag`);
+        if (lockedFlag && !flagIds.has(lockedFlag)) fail(`${record.id}: locked_flag references missing flag '${lockedFlag}'`);
+        if (lockedFlag === openFlag) fail(`${record.id}: open_flag and locked_flag must be different`);
+      } else if (openFlag || lockedFlag) fail(`${record.id}: only containers can define open_flag or locked_flag`);
+      return { id: record.id, name: validateCharacters(record.name || "", `${record.id}: name`), type, initial_location: String(record.initial_location || ""), open_flag: openFlag, locked_flag: lockedFlag };
     });
+    const objectTypes = new Map(cleanObjects.map((record) => [record.id, record.type]));
 
     const firstBank = 2;
     const roomIds = new Set(); const sceneIds = new Set(); let sceneCount = 0;
@@ -174,7 +185,7 @@
           const actionEffects = {}; for (const operation of FLAG_EFFECTS) actionEffects[operation] = checkedFlags(action.effects?.[operation], `${label} ${operation}`, flagIds);
           actionEffects.take_object = target(action.effects?.take_object, `${label} take_object`);
           actionEffects.remove_object = target(action.effects?.remove_object, `${label} remove_object`);
-          return { label: validateCharacters(action.label || "", `${label} label`), when_all: checkedFlags(action.when_all, `${label} when_all`, flagIds), when_clear: checkedFlags(action.when_clear, `${label} when_clear`, flagIds), requires_carried: target(action.requires_carried, `${label} requires_carried`), requires_here: target(action.requires_here, `${label} requires_here`), effects: actionEffects };
+          return { label: validateCharacters(action.label || "", `${label} label`), when_all: checkedFlags(action.when_all, `${label} when_all`, flagIds), when_clear: checkedFlags(action.when_clear, `${label} when_clear`, flagIds), requires_carried: target(action.requires_carried, `${label} requires_carried`), requires_here: target(action.requires_here, `${label} requires_here`), destination: target(action.destination, `${label} destination`), effects: actionEffects };
         });
         if (contextActions.length > 6) fail(`${scene.id}: context_actions must contain at most six actions`);
         const appearancePreset = target(scene.appearance_preset, `${scene.id}: appearance_preset`);
@@ -195,14 +206,32 @@
     if (sceneCount > STORY_BANKS.length * MAX_PAGES_PER_BANK) fail(`The 32K cartridge supports at most ${STORY_BANKS.length * MAX_PAGES_PER_BANK} scenes`);
     if (!roomIds.has(raw.start_room)) fail("start_room must name an existing room");
     const sceneRoom = new Map(rooms.flatMap((room) => room.scenes.map((scene) => [scene.id, room.id])));
-    for (const object of cleanObjects) if (![...roomIds, "carried", "removed"].includes(object.initial_location)) fail(`${object.id}: initial_location references a missing room`);
+    const containerIds = new Set(cleanObjects.filter((object) => object.type === "container").map((object) => object.id));
+    for (const object of cleanObjects) {
+      if (object.type === "container") {
+        if (!roomIds.has(object.initial_location)) fail(`${object.id}: a container must initially be located in a room`);
+      } else if (object.initial_location.startsWith("container:")) {
+        const containerId = object.initial_location.slice("container:".length);
+        if (!containerIds.has(containerId)) fail(`${object.id}: initial_location references missing container '${containerId}'`);
+      } else if (![...roomIds, "carried", "removed"].includes(object.initial_location)) fail(`${object.id}: initial_location references a missing room`);
+    }
     for (const room of rooms) {
       for (const direction of MOVEMENTS) if (room.exits[direction] && !roomIds.has(room.exits[direction])) fail(`${room.id}: ${direction} points to a missing room`);
       for (const variant of room.variants) if (sceneRoom.get(variant.scene) !== room.id) fail(`${room.id}: variant scene must belong to this room`);
       for (const scene of room.scenes) {
         if (scene.next && sceneRoom.get(scene.next) !== room.id) fail(`${scene.id}: NEXT must point to a scene in the same room`);
         for (const value of Object.values(scene.exit_overrides)) if (value && !roomIds.has(value)) fail(`${scene.id}: exit override points to a missing room`);
-        for (const action of scene.context_actions) for (const id of [action.requires_carried, action.requires_here, action.effects.take_object, action.effects.remove_object]) if (id && !objectIds.has(id)) fail(`${scene.id}: contextual action references missing object '${id}'`);
+        for (const action of scene.context_actions) {
+          for (const id of [action.requires_carried, action.requires_here, action.effects.take_object, action.effects.remove_object]) if (id && !objectIds.has(id)) fail(`${scene.id}: contextual action references missing object '${id}'`);
+          if (action.requires_carried && objectTypes.get(action.requires_carried) !== "portable") fail(`${scene.id}: contextual action cannot require a container to be carried`);
+          if (action.effects.take_object && objectTypes.get(action.effects.take_object) !== "portable") fail(`${scene.id}: contextual action cannot take a container`);
+          if (action.destination) {
+            const match = /^(room|scene):(.+)$/.exec(action.destination);
+            if (!match) fail(`${scene.id}: contextual action destination is invalid`);
+            if (match[1] === "room" && !roomIds.has(match[2])) fail(`${scene.id}: contextual action destination references missing room '${match[2]}'`);
+            if (match[1] === "scene" && !sceneIds.has(match[2])) fail(`${scene.id}: contextual action destination references missing scene '${match[2]}'`);
+          }
+        }
       }
     }
     return { version: 2, title, start_room: raw.start_room, appearance, appearance_presets: cleanAppearancePresets, splash, flags: cleanFlags, objects: cleanObjects, rooms };
@@ -219,9 +248,16 @@
     const flagIndexes = new Map(project.flags.map((flag, index) => [flag.id, index]));
     const objectIndexes = new Map(project.objects.map((object, index) => [object.id, index]));
     const encodedScene = (id) => { const [b, page] = locations.get(id); return `BANK_${b}|${page}`; };
-    const objectLocations = project.objects.map((object) => object.initial_location === "carried" ? "$FE" : object.initial_location === "removed" ? "$FF" : encodedScene(rooms.get(object.initial_location).entry_scene));
+    const encodedContextDestination = (action) => {
+      if (!action.destination) return "NO_EXIT";
+      const [kind, id] = action.destination.split(":", 2);
+      return encodedScene(kind === "room" ? rooms.get(id).entry_scene : id);
+    };
+    const objectLocations = project.objects.map((object) => object.initial_location === "carried" ? "$FE" : object.initial_location === "removed" ? "$FF" : object.initial_location.startsWith("container:") ? hex(CONTAINER_LOCATION_BASE + objectIndexes.get(object.initial_location.slice("container:".length))) : encodedScene(rooms.get(object.initial_location).entry_scene));
+    const containerOpenFlags = project.objects.map((object) => object.type === "container" ? hex(flagIndexes.get(object.open_flag)) : "$FF");
+    const containerLockedFlags = project.objects.map((object) => object.type === "container" && object.locked_flag ? hex(flagIndexes.get(object.locked_flag)) : "$FF");
     const masks = Array(8).fill(0); project.flags.forEach((flag, index) => { if (flag.initial) masks[Math.floor(index / 8)] |= 1 << (index & 7); });
-    const lines = [`; GENERATED in browser - BANK ${bank}`, "; Rooms are flattened to runtime pages.", "", `START_BANK     equ ${startBank}`, `START_PAGE     equ ${startPage}`, "InitialFlags", `        dc.b ${masks.map(hex).join(",")}`, `OBJECT_COUNT    equ ${project.objects.length}`, "InitialObjectLocations", `        dc.b ${objectLocations.join(",") || "$FF"}`, "ObjectNameLo", `        dc.b ${project.objects.map((_, i) => `<ObjectName${i}`).join(",") || "<BlankLine"}`, "ObjectNameHi", `        dc.b ${project.objects.map((_, i) => `>ObjectName${i}`).join(",") || ">BlankLine"}`, "", "PageTextLo", `        dc.b ${pages.map((_, i) => `<Page${i}Text`).join(",") || "0"}`, "PageTextHi", `        dc.b ${pages.map((_, i) => `>Page${i}Text`).join(",") || "0"}`, "", "; LOOK, NORTH, EAST, SOUTH, WEST, NEXT", "PageActions"];
+    const lines = [`; GENERATED in browser - BANK ${bank}`, "; Rooms are flattened to runtime pages.", "", `START_BANK     equ ${startBank}`, `START_PAGE     equ ${startPage}`, "InitialFlags", `        dc.b ${masks.map(hex).join(",")}`, `OBJECT_COUNT    equ ${project.objects.length}`, "InitialObjectLocations", `        dc.b ${objectLocations.join(",") || "$FF"}`, "ObjectContainerOpenFlags", `        dc.b ${containerOpenFlags.join(",") || "$FF"}`, "ObjectContainerLockedFlags", `        dc.b ${containerLockedFlags.join(",") || "$FF"}`, "ObjectNameLo", `        dc.b ${project.objects.map((_, i) => `<ObjectName${i}`).join(",") || "<BlankLine"}`, "ObjectNameHi", `        dc.b ${project.objects.map((_, i) => `>ObjectName${i}`).join(",") || ">BlankLine"}`, "", "PageTextLo", `        dc.b ${pages.map((_, i) => `<Page${i}Text`).join(",") || "0"}`, "PageTextHi", `        dc.b ${pages.map((_, i) => `>Page${i}Text`).join(",") || "0"}`, "", "; LOOK, NORTH, EAST, SOUTH, WEST, NEXT", "PageActions"];
     for (const [room, scene] of pages) {
       const targets = { look: room.entry_scene, next: scene.next };
       for (const direction of MOVEMENTS) { const roomId = Object.prototype.hasOwnProperty.call(scene.exit_overrides, direction) ? scene.exit_overrides[direction] : room.exits[direction]; targets[direction] = roomId ? rooms.get(roomId).entry_scene : null; }
@@ -237,7 +273,7 @@
     lines.push("", "; page, action, encoded flag operations, $FF; table ends with $FE", "PageEffects", ...effectLines, "        dc.b $FE");
     const contexts = pages.map(([, scene], index) => scene.context_actions.length ? `Page${index}Context` : "NoContext");
     lines.push("", "; Per-page contextual actions: label pointer, requirements, effects.", "PageContextLo", `        dc.b ${contexts.map((label) => `<${label}`).join(",") || "<NoContext"}`, "PageContextHi", `        dc.b ${contexts.map((label) => `>${label}`).join(",") || ">NoContext"}`, "NoContext", "        dc.b 0");
-    pages.forEach(([, scene], page) => { if (!scene.context_actions.length) return; lines.push("", `Page${page}Context`, `        dc.b ${scene.context_actions.length}`); scene.context_actions.forEach((action, actionIndex) => { const requirements = [...action.when_all.map((id) => hex(flagIndexes.get(id))), ...action.when_clear.map((id) => hex(0x80 | flagIndexes.get(id)))]; const objectRequirements = []; if (action.requires_carried) objectRequirements.push(hex(objectIndexes.get(action.requires_carried))); if (action.requires_here) objectRequirements.push(hex(0x40 | objectIndexes.get(action.requires_here))); const operations = FLAG_EFFECTS.flatMap((operation, operationIndex) => action.effects[operation].map((id) => hex(operationIndex * 0x40 | flagIndexes.get(id)))); const objectOperations = []; if (action.effects.take_object) objectOperations.push(hex(objectIndexes.get(action.effects.take_object))); if (action.effects.remove_object) objectOperations.push(hex(0x40 | objectIndexes.get(action.effects.remove_object))); lines.push(`        dc.w ContextLabel${page}_${actionIndex}`, `        dc.b ${[...requirements, "$FF"].join(",")}`, `        dc.b ${[...objectRequirements, "$FF"].join(",")}`, `        dc.b ${[...operations, "$FF"].join(",")}`, `        dc.b ${[...objectOperations, "$FF"].join(",")}`); }); });
+    pages.forEach(([, scene], page) => { if (!scene.context_actions.length) return; lines.push("", `Page${page}Context`, `        dc.b ${scene.context_actions.length}`); scene.context_actions.forEach((action, actionIndex) => { const requirements = [...action.when_all.map((id) => hex(flagIndexes.get(id))), ...action.when_clear.map((id) => hex(0x80 | flagIndexes.get(id)))]; const objectRequirements = []; if (action.requires_carried) objectRequirements.push(hex(objectIndexes.get(action.requires_carried))); if (action.requires_here) objectRequirements.push(hex(0x40 | objectIndexes.get(action.requires_here))); const operations = FLAG_EFFECTS.flatMap((operation, operationIndex) => action.effects[operation].map((id) => hex(operationIndex * 0x40 | flagIndexes.get(id)))); const objectOperations = []; if (action.effects.take_object) objectOperations.push(hex(objectIndexes.get(action.effects.take_object))); if (action.effects.remove_object) objectOperations.push(hex(0x40 | objectIndexes.get(action.effects.remove_object))); lines.push(`        dc.w ContextLabel${page}_${actionIndex}`, `        dc.b ${[...requirements, "$FF"].join(",")}`, `        dc.b ${[...objectRequirements, "$FF"].join(",")}`, `        dc.b ${[...operations, "$FF"].join(",")}`, `        dc.b ${[...objectOperations, "$FF"].join(",")}`, `        dc.b ${encodedContextDestination(action)}`); }); });
     pages.forEach(([room, scene], index) => { lines.push(""); if (index % 2 === 0) lines.push("        align $100"); lines.push(`; ${room.id} / ${scene.id} - ${scene.name}`, `Page${index}Text`, ...scene.text.map((row) => `        dc.b "${row.padEnd(ROW_WIDTH).replaceAll(" ", "[")}"`)); });
     lines.push(""); return lines.join("\n");
   }
@@ -297,9 +333,16 @@
     const { pages, locations, indexes } = f4Layout(project); const rooms = new Map(project.rooms.map((room) => [room.id, room]));
     const flagIndexes = new Map(project.flags.map((flag, index) => [flag.id, index])); const objectIndexes = new Map(project.objects.map((object, index) => [object.id, index]));
     const startId = rooms.get(project.start_room).entry_scene; const [startBank, startPage] = locations.get(startId);
+    const encodedContextDestination = (action) => {
+      if (!action.destination) return "NO_EXIT";
+      const [kind, id] = action.destination.split(":", 2);
+      return encodedF4(locations, kind === "room" ? rooms.get(id).entry_scene : id);
+    };
     const masks = Array(8).fill(0); project.flags.forEach((flag, index) => { if (flag.initial) masks[Math.floor(index / 8)] |= 1 << (index & 7); });
-    const objectLocations = project.objects.map((object) => object.initial_location === "carried" ? "$FE" : object.initial_location === "removed" ? "$FF" : encodedF4(locations, rooms.get(object.initial_location).entry_scene));
-    const lines = ["; GENERATED global story logic for 32K F4 bank 1", "        org $F500", `START_BANK equ ${startBank}`, `START_PAGE equ ${startPage}`, `START_SCENE equ ${indexes.get(startId)}`, "InitialFlags", `        dc.b ${masks.map(hex).join(",")}`, `OBJECT_COUNT equ ${project.objects.length}`, "InitialObjectLocations", `        dc.b ${objectLocations.join(",") || "$FF"}`, "StoryBankOffsets", "        dc.b 0,0,0,17,34,51,68,85"];
+    const objectLocations = project.objects.map((object) => object.initial_location === "carried" ? "$FE" : object.initial_location === "removed" ? "$FF" : object.initial_location.startsWith("container:") ? hex(CONTAINER_LOCATION_BASE + objectIndexes.get(object.initial_location.slice("container:".length))) : encodedF4(locations, rooms.get(object.initial_location).entry_scene));
+    const containerOpenFlags = project.objects.map((object) => object.type === "container" ? hex(flagIndexes.get(object.open_flag)) : "$FF");
+    const containerLockedFlags = project.objects.map((object) => object.type === "container" && object.locked_flag ? hex(flagIndexes.get(object.locked_flag)) : "$FF");
+    const lines = ["; GENERATED global story logic for 32K F4 bank 1", "        org $F500", `START_BANK equ ${startBank}`, `START_PAGE equ ${startPage}`, `START_SCENE equ ${indexes.get(startId)}`, "InitialFlags", `        dc.b ${masks.map(hex).join(",")}`, `OBJECT_COUNT equ ${project.objects.length}`, "InitialObjectLocations", `        dc.b ${objectLocations.join(",") || "$FF"}`, "ObjectContainerOpenFlags", `        dc.b ${containerOpenFlags.join(",") || "$FF"}`, "ObjectContainerLockedFlags", `        dc.b ${containerLockedFlags.join(",") || "$FF"}`, "StoryBankOffsets", "        dc.b 0,0,0,17,34,51,68,85"];
     const emitTable = (label, values) => { lines.push(label); for (let offset = 0; offset < values.length; offset += 16) lines.push(`        dc.b ${values.slice(offset, offset + 16).join(",")}`); };
     const columns = ACTIONS.map(() => []);
     pages.forEach(([room, scene]) => { const targets = { look: room.entry_scene, next: scene.next }; for (const direction of MOVEMENTS) { const roomId = Object.hasOwn(scene.exit_overrides, direction) ? scene.exit_overrides[direction] : room.exits[direction]; targets[direction] = roomId ? rooms.get(roomId).entry_scene : null; } ACTIONS.forEach((action, index) => columns[index].push(targets[action] ? encodedF4(locations, targets[action]) : "NO_EXIT")); });
@@ -319,7 +362,7 @@
     lines.push("PageEffects", ...effects, "        dc.b $FE");
     const contextLabels = []; const contextPages = pages.map(([, scene], index) => scene.context_actions.length ? `Scene${index}Context` : "NoContext");
     emitTable("PageContextLo", contextPages.map((v) => `<${v}`)); emitTable("PageContextHi", contextPages.map((v) => `>${v}`)); lines.push("NoContext", "        dc.b 0");
-    pages.forEach(([, scene], sceneIndex) => { if (!scene.context_actions.length) return; lines.push(`Scene${sceneIndex}Context`, `        dc.b ${scene.context_actions.length}`); scene.context_actions.forEach((action, actionIndex) => { const requirements = [...action.when_all.map((id) => hex(flagIndexes.get(id))), ...action.when_clear.map((id) => hex(0x80 | flagIndexes.get(id)))]; const objectRequirements = []; if (action.requires_carried) objectRequirements.push(hex(objectIndexes.get(action.requires_carried))); if (action.requires_here) objectRequirements.push(hex(0x40 | objectIndexes.get(action.requires_here))); const operations = FLAG_EFFECTS.flatMap((operation, operationIndex) => action.effects[operation].map((id) => hex(operationIndex * 0x40 | flagIndexes.get(id)))); const objectOperations = []; if (action.effects.take_object) objectOperations.push(hex(objectIndexes.get(action.effects.take_object))); if (action.effects.remove_object) objectOperations.push(hex(0x40 | objectIndexes.get(action.effects.remove_object))); lines.push(`        dc.w ContextLabel${sceneIndex}_${actionIndex}`, `        dc.b ${[...requirements, "$FF"].join(",")}`, `        dc.b ${[...objectRequirements, "$FF"].join(",")}`, `        dc.b ${[...operations, "$FF"].join(",")}`, `        dc.b ${[...objectOperations, "$FF"].join(",")}`); contextLabels.push([sceneIndex, actionIndex, action]); }); });
+    pages.forEach(([, scene], sceneIndex) => { if (!scene.context_actions.length) return; lines.push(`Scene${sceneIndex}Context`, `        dc.b ${scene.context_actions.length}`); scene.context_actions.forEach((action, actionIndex) => { const requirements = [...action.when_all.map((id) => hex(flagIndexes.get(id))), ...action.when_clear.map((id) => hex(0x80 | flagIndexes.get(id)))]; const objectRequirements = []; if (action.requires_carried) objectRequirements.push(hex(objectIndexes.get(action.requires_carried))); if (action.requires_here) objectRequirements.push(hex(0x40 | objectIndexes.get(action.requires_here))); const operations = FLAG_EFFECTS.flatMap((operation, operationIndex) => action.effects[operation].map((id) => hex(operationIndex * 0x40 | flagIndexes.get(id)))); const objectOperations = []; if (action.effects.take_object) objectOperations.push(hex(objectIndexes.get(action.effects.take_object))); if (action.effects.remove_object) objectOperations.push(hex(0x40 | objectIndexes.get(action.effects.remove_object))); lines.push(`        dc.w ContextLabel${sceneIndex}_${actionIndex}`, `        dc.b ${[...requirements, "$FF"].join(",")}`, `        dc.b ${[...objectRequirements, "$FF"].join(",")}`, `        dc.b ${[...operations, "$FF"].join(",")}`, `        dc.b ${[...objectOperations, "$FF"].join(",")}`, `        dc.b ${encodedContextDestination(action)}`); contextLabels.push([sceneIndex, actionIndex, action]); }); });
     contextLabels.forEach(([scene, index, action]) => lines.push(`ContextLabel${scene}_${index} dc.b "${action.label.padEnd(ROW_WIDTH).replaceAll(" ", "[")}"`));
     lines.push(""); return lines.join("\n");
   }

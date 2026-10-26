@@ -57,7 +57,8 @@ class StoryModelTests(unittest.TestCase):
         self.assertEqual(self.project["version"], 2)
         self.assertGreaterEqual(len(self.project["rooms"]), 1)
         self.assertEqual(self.project["rooms"][0]["scenes"][0]["bank"], 2)
-        self.assertEqual(self.project["start_room"], "room_1_dock")
+        self.assertEqual(self.project["title"], "Castle of the Two Keys")
+        self.assertEqual(self.project["start_room"], "ashen_moor")
 
     def test_appearance_defaults_and_generated_constants(self) -> None:
         project = self.make_large_project(1)
@@ -374,6 +375,34 @@ class StoryModelTests(unittest.TestCase):
         with self.assertRaisesRegex(StoryError, "1-12 characters"):
             validate_project(project)
 
+    def test_contextual_action_can_enter_room_or_specific_scene(self) -> None:
+        project = self.make_large_project(2)
+        action = {
+            "label": "ENTER EAST", "when_all": [], "when_clear": [],
+            "destination": "room:room_1",
+            "effects": {"set": [], "clear": [], "toggle": []},
+        }
+        project["rooms"][0]["scenes"][0]["context_actions"] = [action]
+        validated = validate_project(project)
+        self.assertEqual(validated["rooms"][0]["scenes"][0]["context_actions"][0]["destination"], "room:room_1")
+        source = generate_logic_source(validated)
+        self.assertIn("Scene0Context", source)
+        self.assertIn("dc.b BANK_2|1", source)
+
+        action["destination"] = "scene:scene_1"
+        validated = validate_project(project)
+        self.assertEqual(validated["rooms"][0]["scenes"][0]["context_actions"][0]["destination"], "scene:scene_1")
+
+    def test_contextual_action_rejects_missing_destination(self) -> None:
+        project = self.make_large_project(1)
+        project["rooms"][0]["scenes"][0]["context_actions"] = [{
+            "label": "GO AWAY", "when_all": [], "when_clear": [],
+            "destination": "room:missing",
+            "effects": {"set": [], "clear": [], "toggle": []},
+        }]
+        with self.assertRaisesRegex(StoryError, "destination references missing room"):
+            validate_project(project)
+
     def test_portable_object_generates_location_inventory_name_and_action_ops(self) -> None:
         project = self.make_large_project(1)
         project["objects"] = [{"id": "fuse", "name": "FUSE", "initial_location": "room_0"}]
@@ -383,6 +412,7 @@ class StoryModelTests(unittest.TestCase):
             "effects": {"set": [], "clear": [], "toggle": [], "take_object": "fuse", "remove_object": None},
         }]
         validated = validate_project(project)
+        self.assertEqual(validated["objects"][0]["type"], "portable")
         source = generate_logic_source(validated)
         self.assertIn("OBJECT_COUNT equ 1", source)
         self.assertIn("InitialObjectLocations", source)
@@ -390,6 +420,43 @@ class StoryModelTests(unittest.TestCase):
         self.assertIn("dc.b $00,$FF", source)  # move object to carried
         from tools.story_model import generate_context_labels
         self.assertIn('ObjectName0 dc.b "FUSE[[[[[[[["', generate_context_labels(validated, 2))
+
+    def test_container_hides_contents_until_open_and_generates_rom_tables(self) -> None:
+        project = self.make_large_project(1)
+        project["flags"] = [
+            {"id": "CHEST_OPEN", "initial": False},
+            {"id": "CHEST_LOCKED", "initial": True},
+        ]
+        project["objects"] = [
+            {"id": "chest", "name": "OLD CHEST", "type": "container", "initial_location": "room_0", "open_flag": "CHEST_OPEN", "locked_flag": "CHEST_LOCKED"},
+            {"id": "key", "name": "SMALL KEY", "type": "portable", "initial_location": "container:chest"},
+        ]
+        project["rooms"][0]["scenes"][0]["context_actions"] = [{
+            "label": "TAKE KEY", "when_all": [], "when_clear": [],
+            "requires_carried": None, "requires_here": "key",
+            "effects": {"set": [], "clear": [], "toggle": [], "take_object": "key", "remove_object": None},
+        }]
+        validated = validate_project(project)
+        source = generate_logic_source(validated)
+        self.assertIn("InitialObjectLocations\n        dc.b BANK_2|0,$F1", source)
+        self.assertIn("ObjectContainerOpenFlags\n        dc.b $00,$FF", source)
+        self.assertIn("ObjectContainerLockedFlags\n        dc.b $01,$FF", source)
+        self.assertIn("dc.b $41,$FF", source)  # key must be here through its open container
+
+    def test_container_requires_valid_flags_and_cannot_be_taken(self) -> None:
+        project = self.make_large_project(1)
+        project["objects"] = [{"id": "chest", "name": "CHEST", "type": "container", "initial_location": "room_0"}]
+        with self.assertRaisesRegex(StoryError, "open_flag"):
+            validate_project(project)
+
+        project["flags"] = [{"id": "CHEST_OPEN", "initial": False}]
+        project["objects"][0]["open_flag"] = "CHEST_OPEN"
+        project["rooms"][0]["scenes"][0]["context_actions"] = [{
+            "label": "TAKE CHEST", "when_all": [], "when_clear": [],
+            "requires_here": "chest", "effects": {"set": [], "clear": [], "toggle": [], "take_object": "chest"},
+        }]
+        with self.assertRaisesRegex(StoryError, "cannot take a container"):
+            validate_project(project)
 
     def test_missing_object_reference_is_rejected(self) -> None:
         project = self.make_large_project(1)

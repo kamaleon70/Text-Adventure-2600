@@ -16,10 +16,14 @@ const SCENE_APPEARANCE_LABELS = { background_color: "Text background", border_co
 const ATARI_HUE_NAMES = ["Gray", "Gold", "Orange", "Red-orange", "Red", "Rose", "Purple", "Violet", "Blue", "Blue", "Cyan", "Turquoise", "Green", "Yellow-green", "Olive", "Yellow"];
 const AUTOSAVE_KEY = "textAdventure2600.project.autosave.v1";
 const LEGACY_AUTOSAVE_KEY = "tinyTextAdventure.project.autosave.v1";
+const MANUAL_LANGUAGE_KEY = "textAdventure2600.manual.language.v1";
 const STATIC_MODE = window.TEXT_ADVENTURE_2600_STATIC === true || new URLSearchParams(window.location.search).get("static") === "1";
 let autosaveTimer = null;
 let worldResizeFrame = 0;
 let worldResizeObserver = null;
+let manualLanguage = "en";
+let currentManualGuide = null;
+const manualOverviewEnglish = new Map();
 const state = {
   data: null,
   project: null,
@@ -36,6 +40,7 @@ const state = {
   contextScene: null,
   appearancePreset: null,
   dirty: false,
+  buildRunning: false,
   pollTimer: null,
 };
 
@@ -149,7 +154,7 @@ function resetPlaytest() {
   state.playObjects = initialPlayObjects();
   state.playInventory = false;
   state.playScene = resolvedRoomScene(roomById(state.project.start_room));
-  state.playAction = "look";
+  state.playAction = defaultPlayAction(state.playScene);
   renderPlaytest();
 }
 
@@ -158,6 +163,10 @@ function resolvedRoomScene(room) {
     if (variant.when_all.every((flag) => Boolean(state.playFlags[flag])) && variant.when_clear.every((flag) => !state.playFlags[flag])) return variant.scene;
   }
   return room.entry_scene;
+}
+
+function defaultPlayAction(sceneId) {
+  return sceneById(sceneId)?.next ? "next" : "look";
 }
 
 function applyPlayEffects(scene, action) {
@@ -289,8 +298,8 @@ function newProject() {
   state.playFlags = initialPlayFlags();
   state.playObjects = initialPlayObjects();
   state.playInventory = false;
-  state.playAction = "look";
   state.playScene = state.selectedScene;
+  state.playAction = defaultPlayAction(state.playScene);
   markDirty();
   renderAll();
   showTab("world");
@@ -320,13 +329,15 @@ function showManualOverview() {
   if (!overview || !detail) return;
   overview.classList.remove("hidden");
   detail.classList.add("hidden");
+  currentManualGuide = null;
   const content = $("main");
   if (content) content.scrollTop = 0;
 }
 
 function openManualGuide(key) {
-  const guide = window.TextAdventureManualGuides?.[key];
+  const guide = manualGuides()[key];
   if (!guide) return;
+  currentManualGuide = key;
   $("#manual-detail-kicker").textContent = guide.kicker;
   $("#manual-detail-title").textContent = guide.title;
   $("#manual-detail-body").innerHTML = guide.html;
@@ -336,10 +347,60 @@ function openManualGuide(key) {
   if (content) content.scrollTop = 0;
 }
 
+function manualGuides() {
+  return manualLanguage === "it" ? (window.TextAdventureManualGuidesItalian || {}) : (window.TextAdventureManualGuides || {});
+}
+
+function manualUi() {
+  return manualLanguage === "it" ? {
+    tab: "Manuale utente", kicker: "Guida dell'autore", title: "Manuale utente",
+    description: "Tutto ciò che serve per creare, provare, salvare e compilare un'avventura. I nomi dei comandi restano in inglese, esattamente come nell'editor.",
+    language: "Lingua", details: "Guida dettagliata →", back: "← Torna al manuale utente",
+  } : {
+    tab: "User manual", kicker: "Author's guide", title: "User manual",
+    description: "Everything needed to create, test, save, and build a text adventure inside this browser editor.",
+    language: "Language", details: "Detailed guide →", back: "← Back to user manual",
+  };
+}
+
+function renderManualLanguage() {
+  const ui = manualUi();
+  $("#manual-tab-label").textContent = ui.tab;
+  $("#manual-heading-kicker").textContent = ui.kicker;
+  $("#manual-heading-title").textContent = ui.title;
+  $("#manual-heading-description").textContent = ui.description;
+  $("#manual-language-label").textContent = ui.language;
+  $("#manual-language-select").value = manualLanguage;
+  $$(".manual-back").forEach((button) => { button.textContent = ui.back; });
+  $$(".manual-card[data-manual-guide]").forEach((card) => {
+    const key = card.dataset.manualGuide;
+    const button = card.querySelector(".manual-detail-link");
+    if (manualLanguage === "it") {
+      const guide = window.TextAdventureManualGuidesItalian?.[key];
+      if (guide?.summaryHtml) card.querySelector(".manual-card-summary").innerHTML = guide.summaryHtml;
+    } else {
+      card.querySelector(".manual-card-summary").innerHTML = manualOverviewEnglish.get(key) || "";
+    }
+    if (button) button.textContent = ui.details;
+  });
+  if (currentManualGuide) openManualGuide(currentManualGuide);
+}
+
+function setManualLanguage(language) {
+  manualLanguage = language === "it" ? "it" : "en";
+  try { localStorage.setItem(MANUAL_LANGUAGE_KEY, manualLanguage); } catch (_error) { /* Storage may be unavailable. */ }
+  renderManualLanguage();
+}
+
 function bindManualGuides() {
   $$(".manual-card[data-manual-guide]").forEach((card) => {
     const guide = window.TextAdventureManualGuides?.[card.dataset.manualGuide];
     if (!guide) return;
+    const summary = document.createElement("div");
+    summary.className = "manual-card-summary";
+    while (card.firstChild) summary.append(card.firstChild);
+    card.append(summary);
+    manualOverviewEnglish.set(card.dataset.manualGuide, summary.innerHTML);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button ghost manual-detail-link";
@@ -348,6 +409,9 @@ function bindManualGuides() {
     card.append(button);
   });
   $$(".manual-back").forEach((button) => button.addEventListener("click", showManualOverview));
+  try { manualLanguage = localStorage.getItem(MANUAL_LANGUAGE_KEY) === "it" ? "it" : "en"; } catch (_error) { manualLanguage = "en"; }
+  $("#manual-language-select").addEventListener("change", (event) => setManualLanguage(event.target.value));
+  renderManualLanguage();
 }
 
 function selectScene(id, openEditor = false) {
@@ -695,6 +759,9 @@ function deleteSelectedScene() {
   if (room.entry_scene === scene.id) room.entry_scene = room.scenes[0].id;
   room.variants = (room.variants || []).filter((variant) => variant.scene !== scene.id);
   for (const candidate of room.scenes) if (candidate.next === scene.id) candidate.next = null;
+  for (const owner of state.project.rooms) for (const candidate of owner.scenes) for (const action of candidate.context_actions || []) {
+    if (action.destination === `scene:${scene.id}`) action.destination = null;
+  }
   if (state.playScene === scene.id) state.playScene = room.entry_scene;
   state.selectedScene = room.entry_scene;
   assignBanks(); markDirty(); renderAll();
@@ -714,6 +781,9 @@ function deleteSelectedRoom() {
     for (const direction of MOVEMENTS) if (candidate.exits[direction] === room.id) candidate.exits[direction] = null;
     for (const scene of candidate.scenes) {
       for (const direction of MOVEMENTS) if (scene.exit_overrides[direction] === room.id) scene.exit_overrides[direction] = null;
+      for (const action of scene.context_actions || []) {
+        if (action.destination === `room:${room.id}` || (action.destination?.startsWith("scene:") && removedScenes.has(action.destination.slice(6)))) action.destination = null;
+      }
     }
   }
   const first = state.project.rooms[0];
@@ -733,20 +803,57 @@ function selectedValues(select) {
   return [...select.selectedOptions].map((option) => option.value);
 }
 
-function objectOptions(selected, includeEmpty = true) {
+function objectOptions(selected, includeEmpty = true, type = null) {
   const empty = includeEmpty ? `<option value=""${selected ? "" : " selected"}>None</option>` : "";
-  return empty + (state.project.objects || []).map((record) => `<option value="${escapeHtml(record.id)}"${record.id === selected ? " selected" : ""}>${escapeHtml(record.name)} (${escapeHtml(record.id)})</option>`).join("");
+  return empty + (state.project.objects || []).filter((record) => !type || record.type === type).map((record) => `<option value="${escapeHtml(record.id)}"${record.id === selected ? " selected" : ""}>${escapeHtml(record.name)} (${escapeHtml(record.id)})</option>`).join("");
 }
 
-function objectLocationOptions(selected) {
+function flagChoiceOptions(selected, emptyLabel) {
+  return `<option value=""${selected ? "" : " selected"}>${emptyLabel}</option>` + (state.project.flags || []).map((flag) => `<option value="${escapeHtml(flag.id)}"${flag.id === selected ? " selected" : ""}>${escapeHtml(flag.id)}</option>`).join("");
+}
+
+function objectLocationOptions(selected, object = null) {
   const special = [["carried", "Carried initially"], ["removed", "Removed initially"]];
-  return state.project.rooms.map((room) => `<option value="${escapeHtml(room.id)}"${room.id === selected ? " selected" : ""}>Room: ${escapeHtml(room.name)}</option>`).join("")
-    + special.map(([value, label]) => `<option value="${value}"${value === selected ? " selected" : ""}>${label}</option>`).join("");
+  const rooms = state.project.rooms.map((room) => `<option value="${escapeHtml(room.id)}"${room.id === selected ? " selected" : ""}>Room: ${escapeHtml(room.name)}</option>`).join("");
+  if (object?.type === "container") return rooms;
+  const containers = (state.project.objects || []).filter((record) => record.type === "container" && record.id !== object?.id).map((record) => {
+    const value = `container:${record.id}`;
+    return `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>Inside: ${escapeHtml(record.name)}</option>`;
+  }).join("");
+  return rooms + containers + special.map(([value, label]) => `<option value="${value}"${value === selected ? " selected" : ""}>${label}</option>`).join("");
+}
+
+function contextDestinationOptions(selected) {
+  const none = `<option value=""${selected ? "" : " selected"}>Stay in current room</option>`;
+  const rooms = state.project.rooms.map((room) => {
+    const value = `room:${room.id}`;
+    return `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(room.name)}</option>`;
+  }).join("");
+  const scenes = allSceneRecords().map(({ room, scene }) => {
+    const value = `scene:${scene.id}`;
+    return `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(room.name)} / ${escapeHtml(scene.name)}</option>`;
+  }).join("");
+  return `${none}<optgroup label="Enter room">${rooms}</optgroup><optgroup label="Show specific scene">${scenes}</optgroup>`;
+}
+
+function objectIsHere(objectId, roomId) {
+  const location = state.playObjects[objectId];
+  if (location === roomId) return true;
+  if (!location?.startsWith("container:")) return false;
+  const containerId = location.slice("container:".length);
+  const container = (state.project.objects || []).find((record) => record.id === containerId && record.type === "container");
+  return Boolean(container && state.playObjects[containerId] === roomId && state.playFlags[container.open_flag]);
 }
 
 function objectIsUsed(id) {
+  return (state.project.objects || []).some((record) => record.initial_location === `container:${id}`)
+    || state.project.rooms.some((room) => room.scenes.some((scene) => (scene.context_actions || []).some((action) =>
+      action.requires_carried === id || action.requires_here === id || action.effects.take_object === id || action.effects.remove_object === id)));
+}
+
+function objectNeedsPortableType(id) {
   return state.project.rooms.some((room) => room.scenes.some((scene) => (scene.context_actions || []).some((action) =>
-    action.requires_carried === id || action.requires_here === id || action.effects.take_object === id || action.effects.remove_object === id)));
+    action.requires_carried === id || action.effects.take_object === id)));
 }
 
 function renameObject(oldId, newId) {
@@ -754,6 +861,7 @@ function renameObject(oldId, newId) {
   if (newId !== oldId && state.project.objects.some((record) => record.id === newId)) { alert("That object ID is already used."); renderObjects(); return; }
   const record = state.project.objects.find((candidate) => candidate.id === oldId);
   record.id = newId;
+  for (const object of state.project.objects) if (object.initial_location === `container:${oldId}`) object.initial_location = `container:${newId}`;
   for (const room of state.project.rooms) for (const scene of room.scenes) for (const action of scene.context_actions || []) {
     if (action.requires_carried === oldId) action.requires_carried = newId;
     if (action.requires_here === oldId) action.requires_here = newId;
@@ -769,20 +877,46 @@ function renderObjects() {
   state.project.objects ||= [];
   $("#object-ram").textContent = `${state.project.objects.length} / 8 RAM bytes`;
   $("#object-list").innerHTML = state.project.objects.length ? state.project.objects.map((record, index) => `
-    <div class="object-row" data-index="${index}"><label>Object ID<input class="object-id" value="${escapeHtml(record.id)}" maxlength="32"></label><label>Inventory name<input class="object-name" value="${escapeHtml(record.name)}" maxlength="12"></label><label>Initial location<select class="object-location">${objectLocationOptions(record.initial_location)}</select></label><button class="button danger object-delete" type="button">Delete</button></div>`).join("") : '<p class="help">No objects yet. Add one to create a portable item.</p>';
+    <div class="object-row" data-index="${index}"><label>Object ID<input class="object-id" value="${escapeHtml(record.id)}" maxlength="32"></label><label>Display name<input class="object-name" value="${escapeHtml(record.name)}" maxlength="12"></label><label>Type<select class="object-type"><option value="portable"${record.type === "portable" ? " selected" : ""}>Portable item</option><option value="container"${record.type === "container" ? " selected" : ""}>Container</option></select></label><label>Initial location<select class="object-location">${objectLocationOptions(record.initial_location, record)}</select></label><button class="button danger object-delete" type="button">Delete</button><div class="container-object-fields${record.type === "container" ? "" : " hidden"}"><label>Open-state flag<select class="object-open-flag">${flagChoiceOptions(record.open_flag, "Choose a flag")}</select></label><label>Locked-state flag (optional)<select class="object-locked-flag">${flagChoiceOptions(record.locked_flag, "Not lockable")}</select></label><small>The open flag reveals contents. Use the optional locked flag in OPEN and UNLOCK contextual-action requirements.</small></div></div>`).join("") : '<p class="help">No objects yet. Add a portable item or container.</p>';
   $$(".object-row").forEach((row) => {
     const record = state.project.objects[Number(row.dataset.index)];
     row.querySelector(".object-id").addEventListener("change", (event) => renameObject(record.id, event.target.value.trim()));
     row.querySelector(".object-name").addEventListener("change", (event) => { record.name = event.target.value.trim().toUpperCase(); markDirty(); renderObjects(); renderPlaytest(); });
+    row.querySelector(".object-type").addEventListener("change", (event) => {
+      const nextType = event.target.value;
+      if (nextType === "container" && objectNeedsPortableType(record.id)) {
+        alert("Remove Must be carried and Take object uses before changing this item into a container."); renderObjects(); return;
+      }
+      if (nextType === "portable" && state.project.objects.some((object) => object.initial_location === `container:${record.id}`)) {
+        alert("Move every contained item elsewhere before changing this container into a portable item."); renderObjects(); return;
+      }
+      if (nextType === "container" && !record.open_flag) {
+        if (state.project.flags.length >= 64) { alert("A container needs an open-state flag, but all 64 flags are already used."); renderObjects(); return; }
+        const base = `${record.id.toUpperCase()}_OPEN`.replace(/[^A-Z0-9_]/g, "_");
+        let flagId = base; let suffix = 2;
+        while (state.project.flags.some((flag) => flag.id === flagId)) { flagId = `${base}_${suffix}`; suffix += 1; }
+        state.project.flags.push({ id: flagId, initial: false }); state.playFlags[flagId] = false; record.open_flag = flagId;
+      }
+      record.type = nextType;
+      if (nextType === "container") {
+        record.locked_flag ||= null;
+        if (!state.project.rooms.some((room) => room.id === record.initial_location)) record.initial_location = state.project.start_room;
+      } else { record.open_flag = null; record.locked_flag = null; }
+      state.playObjects[record.id] = record.initial_location;
+      markDirty(); renderObjects(); renderFlags(); renderPlaytest();
+    });
     row.querySelector(".object-location").addEventListener("change", (event) => { record.initial_location = event.target.value; state.playObjects[record.id] = event.target.value; markDirty(); renderPlaytest(); });
+    row.querySelector(".object-open-flag").addEventListener("change", (event) => { record.open_flag = event.target.value || null; if (record.locked_flag === record.open_flag) record.locked_flag = null; markDirty(); renderObjects(); renderFlags(); renderPlaytest(); });
+    row.querySelector(".object-locked-flag").addEventListener("change", (event) => { record.locked_flag = event.target.value || null; if (record.locked_flag === record.open_flag) { alert("Open and locked states need different flags."); record.locked_flag = null; } markDirty(); renderObjects(); renderFlags(); renderPlaytest(); });
     row.querySelector(".object-delete").addEventListener("click", () => {
-      if (objectIsUsed(record.id)) { alert(`Remove all contextual-action uses of ${record.id} before deleting it.`); return; }
+      if (objectIsUsed(record.id)) { alert(`Remove all contextual-action uses and contained objects from ${record.id} before deleting it.`); return; }
       state.project.objects.splice(Number(row.dataset.index), 1); delete state.playObjects[record.id]; markDirty(); renderObjects(); renderFlags(); renderPlaytest();
     });
   });
 }
 
 function flagIsUsed(id) {
+  if ((state.project.objects || []).some((object) => object.open_flag === id || object.locked_flag === id)) return true;
   for (const room of state.project.rooms) {
     for (const variant of room.variants || []) if (variant.when_all.includes(id) || variant.when_clear.includes(id)) return true;
     for (const scene of room.scenes) for (const effect of Object.values(scene.effects || {})) {
@@ -800,6 +934,10 @@ function renameFlag(oldId, newId) {
   if (newId !== oldId && state.project.flags.some((flag) => flag.id === newId)) { alert("That flag ID is already used."); renderFlags(); return; }
   const replace = (items) => items.map((id) => id === oldId ? newId : id);
   state.project.flags.find((flag) => flag.id === oldId).id = newId;
+  for (const object of state.project.objects || []) {
+    if (object.open_flag === oldId) object.open_flag = newId;
+    if (object.locked_flag === oldId) object.locked_flag = newId;
+  }
   for (const room of state.project.rooms) {
     for (const variant of room.variants || []) { variant.when_all = replace(variant.when_all); variant.when_clear = replace(variant.when_clear); }
     for (const scene of room.scenes) for (const effect of Object.values(scene.effects || {})) {
@@ -866,7 +1004,7 @@ function renderFlags() {
   $("#context-action-list").innerHTML = contextScene.context_actions.length ? contextScene.context_actions.map((action, index) => `
     <div class="context-action-row" data-index="${index}"><div class="context-action-head"><label>Cartridge label (12 characters)<input class="context-label" maxlength="12" value="${escapeHtml(action.label)}"></label><button class="button danger context-delete" type="button">Delete</button></div>
     <div class="context-action-fields"><label>Require set<select class="context-require-set" multiple>${flagOptions(action.when_all)}</select></label><label>Require clear<select class="context-require-clear" multiple>${flagOptions(action.when_clear)}</select></label><label>SET flags<select class="context-set" multiple>${flagOptions(action.effects.set)}</select></label><label>CLEAR flags<select class="context-clear" multiple>${flagOptions(action.effects.clear)}</select></label><label>TOGGLE flags<select class="context-toggle" multiple>${flagOptions(action.effects.toggle)}</select></label></div>
-    <div class="context-object-fields"><label>Must be carried<select class="context-require-carried">${objectOptions(action.requires_carried)}</select></label><label>Must be here<select class="context-require-here">${objectOptions(action.requires_here)}</select></label><label>Take object<select class="context-take">${objectOptions(action.effects.take_object)}</select></label><label>Remove object<select class="context-remove">${objectOptions(action.effects.remove_object)}</select></label></div></div>`).join("") : '<p class="help">This scene has no contextual actions. LOOK, INVENTORY, and NEXT remain available automatically.</p>';
+    <div class="context-object-fields"><label>Must be carried<select class="context-require-carried">${objectOptions(action.requires_carried, true, "portable")}</select></label><label>Must be here<select class="context-require-here">${objectOptions(action.requires_here)}</select></label><label>Take object<select class="context-take">${objectOptions(action.effects.take_object, true, "portable")}</select></label><label>Remove object<select class="context-remove">${objectOptions(action.effects.remove_object)}</select></label><label>After action<select class="context-destination">${contextDestinationOptions(action.destination)}</select></label></div></div>`).join("") : '<p class="help">This scene has no contextual actions. LOOK, INVENTORY, and NEXT remain available automatically.</p>';
   $$(".context-action-row").forEach((row) => {
     const action = contextScene.context_actions[Number(row.dataset.index)];
     row.querySelector(".context-label").addEventListener("change", (event) => { action.label = event.target.value.trim().toUpperCase(); markDirty(); renderPlaytest(); });
@@ -875,6 +1013,7 @@ function renderFlags() {
       action.when_clear = selectedValues(row.querySelector(".context-require-clear")).filter((flag) => !action.when_all.includes(flag));
       action.requires_carried = row.querySelector(".context-require-carried").value || null;
       action.requires_here = row.querySelector(".context-require-here").value || null;
+      action.destination = row.querySelector(".context-destination").value || null;
       action.effects = { set: selectedValues(row.querySelector(".context-set")), clear: selectedValues(row.querySelector(".context-clear")), toggle: selectedValues(row.querySelector(".context-toggle")), take_object: row.querySelector(".context-take").value || null, remove_object: row.querySelector(".context-remove").value || null };
       const seen = new Set();
       for (const operation of ["set", "clear", "toggle"]) action.effects[operation] = action.effects[operation].filter((flag) => { if (seen.has(flag)) return false; seen.add(flag); return true; });
@@ -896,13 +1035,13 @@ function renderPlaytest() {
   }
   const { room, scene } = record;
   if (state.playInventory) {
-    const carried = (state.project.objects || []).filter((object) => state.playObjects[object.id] === "carried").map((object) => object.name);
+    const carried = (state.project.objects || []).filter((object) => object.type === "portable" && state.playObjects[object.id] === "carried").map((object) => object.name);
     const rows = [" INVENTORY", ...carried, ...Array(9).fill("")].slice(0, 10);
     $("#play-page-name").textContent = "Inventory";
     $("#play-text").innerHTML = rows.map((line) => `<div>${escapeHtml(line.padEnd(12, " "))}</div>`).join("");
     $("#play-action").textContent = "FIRE: RETURN";
     $("#play-actions").innerHTML = '<button type="button" id="play-inventory-return" class="available">RETURN</button>';
-    $("#play-inventory-return").addEventListener("click", () => { state.playInventory = false; state.playAction = "look"; renderPlaytest(); });
+    $("#play-inventory-return").addEventListener("click", () => { state.playInventory = false; state.playAction = defaultPlayAction(state.playScene); renderPlaytest(); });
     renderPlayDebug();
     return;
   }
@@ -924,7 +1063,7 @@ function renderPlaytest() {
   const contextual = (scene.context_actions || []).map((action, index) => {
     const flagsMatch = action.when_all.every((flag) => Boolean(state.playFlags[flag])) && action.when_clear.every((flag) => !state.playFlags[flag]);
     const carriedMatch = !action.requires_carried || state.playObjects[action.requires_carried] === "carried";
-    const hereMatch = !action.requires_here || state.playObjects[action.requires_here] === room.id;
+    const hereMatch = !action.requires_here || objectIsHere(action.requires_here, room.id);
     const available = flagsMatch && carriedMatch && hereMatch;
     return `<button type="button" data-context="${index}"${available ? ' class="available"' : " disabled"}>${escapeHtml(action.label)}</button>`;
   }).join("");
@@ -941,9 +1080,10 @@ function renderPlayDebug() {
     state.playFlags[input.dataset.flag] = input.checked;
     const current = sceneRecord(state.playScene);
     if (current) state.playScene = resolvedRoomScene(current.room);
+    state.playAction = defaultPlayAction(state.playScene);
     renderPlaytest();
   }));
-  $("#play-objects").innerHTML = (state.project.objects || []).length ? state.project.objects.map((object) => `<label>${escapeHtml(object.name)}<select data-object="${escapeHtml(object.id)}">${objectLocationOptions(state.playObjects[object.id])}</select></label>`).join("") : '<span class="help">No objects defined.</span>';
+  $("#play-objects").innerHTML = (state.project.objects || []).length ? state.project.objects.map((object) => `<label>${escapeHtml(object.name)}<select data-object="${escapeHtml(object.id)}">${objectLocationOptions(state.playObjects[object.id], object)}</select></label>`).join("") : '<span class="help">No objects defined.</span>';
   $$("#play-objects select").forEach((select) => select.addEventListener("change", () => { state.playObjects[select.dataset.object] = select.value; renderPlaytest(); }));
 }
 
@@ -954,9 +1094,22 @@ function performContextAction(index) {
   applyFlagEffect(action.effects);
   if (action.effects.take_object) state.playObjects[action.effects.take_object] = "carried";
   if (action.effects.remove_object) state.playObjects[action.effects.remove_object] = "removed";
-  state.playAction = `context:${index}`;
-  state.playScene = resolvedRoomScene(record.room);
-  $("#play-result").textContent = `${action.label} applied; room state resolved again.`;
+  if (action.destination) {
+    const [kind, id] = action.destination.split(":", 2);
+    if (kind === "room") {
+      state.playScene = resolvedRoomScene(roomById(id));
+    } else {
+      state.playScene = id;
+      const destination = sceneRecord(id);
+      if (destination?.scene.id === destination?.room.entry_scene) state.playScene = resolvedRoomScene(destination.room);
+    }
+    const destination = sceneRecord(state.playScene);
+    $("#play-result").textContent = `${action.label} → ${destination.room.name} · ${destination.scene.name}`;
+  } else {
+    state.playScene = resolvedRoomScene(record.room);
+    $("#play-result").textContent = `${action.label} applied; room state resolved again.`;
+  }
+  state.playAction = defaultPlayAction(state.playScene);
   renderPlaytest();
 }
 
@@ -964,7 +1117,6 @@ function performPlayAction(action) {
   const record = sceneRecord(state.playScene);
   applyPlayEffects(record.scene, action);
   const targetId = actionTarget(state.playScene, action);
-  state.playAction = action;
   if (targetId) {
     const target = sceneRecord(targetId);
     state.playScene = targetId;
@@ -972,6 +1124,7 @@ function performPlayAction(action) {
   } else {
     $("#play-result").textContent = `${ACTION_LABELS[action]} has no destination on this scene.`;
   }
+  state.playAction = defaultPlayAction(state.playScene);
   renderPlaytest();
 }
 
@@ -1319,7 +1472,7 @@ function renderBuild() {
     <div class="metric"><strong>${state.project.rooms.length}</strong><span>logical rooms · up to ${capacity}</span></div>
     <div class="metric"><strong>${pages}/${capacity}</strong><span>text scenes</span></div>
     <div class="metric"><strong>${state.project.flags.length}/64</strong><span>persistent flags</span></div>
-    <div class="metric"><strong>${(state.project.objects || []).length}/8</strong><span>inventory objects</span></div>
+    <div class="metric"><strong>${(state.project.objects || []).length}/8</strong><span>objects and containers</span></div>
     <div class="metric"><strong>${allocatedCharacters.toLocaleString()}/${maximumCharacters.toLocaleString()}</strong><span>characters used</span></div>
     <div class="metric"><strong>${authored.toLocaleString()}</strong><span>characters written</span></div>`;
   const rom = state.data.rom;
@@ -1349,11 +1502,17 @@ function renderDebug() {
   }).join("");
 }
 
-function updateBuildAvailability(running = false) {
+function updateBuildAvailability() {
+  const running = state.buildRunning;
   $$(".engine-action").forEach((button) => { button.disabled = state.dirty || running; });
   $$(".browser-build-action").forEach((button) => { button.disabled = running || (!STATIC_MODE && state.dirty); });
   const note = $("#build-note");
   if (note) note.textContent = running ? "A build action is running." : STATIC_MODE ? "The browser compiler builds the current editor contents." : state.dirty ? "Save the project before building." : "Build actions use the saved project.";
+}
+
+function setBuildRunning(running) {
+  state.buildRunning = Boolean(running);
+  updateBuildAvailability();
 }
 
 function renderJob(job) {
@@ -1362,7 +1521,7 @@ function renderJob(job) {
   badge.className = `badge ${job.status === "succeeded" ? "saved" : job.status}`;
   $("#job-output").textContent = job.log;
   const running = job.status === "running";
-  updateBuildAvailability(running);
+  setBuildRunning(running);
   clearTimeout(state.pollTimer);
   if (running) state.pollTimer = setTimeout(pollAction, 700);
   if (!running && job.id) loadProject(false, true);
@@ -1376,7 +1535,7 @@ async function pollAction() {
     renderJob(payload.job);
   } catch (error) {
     $("#job-output").textContent += `\n${error.message}`;
-    updateBuildAvailability(false);
+    setBuildRunning(false);
   }
 }
 
@@ -1505,10 +1664,10 @@ function bindStaticEvents() {
   });
   $("#add-object").addEventListener("click", () => {
     state.project.objects ||= [];
-    if (state.project.objects.length >= 8) { alert("The cartridge supports at most eight portable objects."); return; }
+    if (state.project.objects.length >= 8) { alert("The cartridge supports at most eight objects and containers."); return; }
     let number = state.project.objects.length + 1; let id = `object_${number}`;
     while (state.project.objects.some((record) => record.id === id)) { number++; id = `object_${number}`; }
-    const record = { id, name: `OBJECT ${number}`.slice(0, 12), initial_location: state.project.start_room };
+    const record = { id, name: `OBJECT ${number}`.slice(0, 12), type: "portable", initial_location: state.project.start_room, open_flag: null, locked_flag: null };
     state.project.objects.push(record); state.playObjects[id] = record.initial_location; markDirty(); renderObjects(); renderFlags(); renderPlaytest();
   });
   const appearanceFields = {
@@ -1549,7 +1708,7 @@ function bindStaticEvents() {
     if (!scene) return;
     if ((scene.context_actions || []).length >= 6) { alert("A scene supports at most six contextual actions."); return; }
     scene.context_actions ||= [];
-    scene.context_actions.push({ label: "NEW ACTION", when_all: [], when_clear: [], requires_carried: null, requires_here: null, effects: { set: [], clear: [], toggle: [], take_object: null, remove_object: null } });
+    scene.context_actions.push({ label: "NEW ACTION", when_all: [], when_clear: [], requires_carried: null, requires_here: null, destination: null, effects: { set: [], clear: [], toggle: [], take_object: null, remove_object: null } });
     markDirty(); renderFlags(); renderPlaytest();
   });
   $("#splash-enabled").addEventListener("change", (event) => {
@@ -1636,6 +1795,7 @@ window.TextAdventureEditor = {
   isDirty: () => state.dirty,
   isStatic: () => STATIC_MODE,
   getProject: () => structuredClone(state.project),
+  setBuildRunning,
 };
 
 if (STATIC_MODE) {

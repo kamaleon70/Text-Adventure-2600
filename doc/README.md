@@ -14,3 +14,4 @@ credits, see the main [README](../README.md). The editor also includes a detaile
 - [Flags and room variants example](FLAGS_AND_VARIANTS_EXAMPLE.md)
 - [Contextual actions example](CONTEXTUAL_ACTIONS_EXAMPLE.md)
 - [Objects, contextual actions, and inventory](OBJECTS_AND_INVENTORY.md)
+- [How rooms, flags, objects, actions, and variants work together](FEATURE_INTERACTIONS.md)

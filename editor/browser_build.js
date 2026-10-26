@@ -14,8 +14,11 @@ function setOutput(message, status = "running") {
 }
 
 function setButtonsDisabled(disabled) {
-  const dirty = window.TextAdventureEditor?.isDirty?.() || false;
-  document.querySelectorAll(".engine-action, .browser-build-action").forEach((button) => { button.disabled = disabled || dirty; });
+  if (typeof window.TextAdventureEditor?.setBuildRunning === "function") {
+    window.TextAdventureEditor.setBuildRunning(disabled);
+    return;
+  }
+  document.querySelectorAll(".browser-build-action").forEach((button) => { button.disabled = disabled; });
 }
 
 async function loadDasm() {

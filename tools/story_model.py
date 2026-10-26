@@ -31,6 +31,7 @@ MAX_CONTEXT_ACTIONS_PER_BANK = 8
 MAX_CONTEXT_CONDITIONS = 4
 MAX_CONTEXT_EFFECTS = 4
 MAX_OBJECTS = 8
+CONTAINER_LOCATION_BASE = 0xF1
 APPEARANCE_DEFAULTS = {
     "background_color": 0x82,
     "border_color": 0x84,
@@ -303,7 +304,7 @@ def validate_project(raw: Any) -> dict[str, Any]:
     clean_objects: list[dict[str, Any]] = []
     object_ids: set[str] = set()
     for index, raw_object in enumerate(raw_objects):
-        if not isinstance(raw_object, dict) or set(raw_object) - {"id", "name", "initial_location"}:
+        if not isinstance(raw_object, dict) or set(raw_object) - {"id", "name", "type", "initial_location", "open_flag", "locked_flag"}:
             raise StoryError(f"object {index + 1} is invalid")
         object_id = raw_object.get("id")
         if not isinstance(object_id, str) or not ID_PATTERN.fullmatch(object_id):
@@ -319,9 +320,27 @@ def validate_project(raw: Any) -> dict[str, Any]:
             raise StoryError(f"{object_id}: name has unsupported character(s): {''.join(invalid)}")
         initial_location = raw_object.get("initial_location")
         if not isinstance(initial_location, str) or not initial_location:
-            raise StoryError(f"{object_id}: initial_location must name a room, carried, or removed")
+            raise StoryError(f"{object_id}: initial_location must name a room, container, carried, or removed")
+        object_type = raw_object.get("type", "portable")
+        if object_type not in {"portable", "container"}:
+            raise StoryError(f"{object_id}: type must be portable or container")
+        open_flag = _clean_target(raw_object.get("open_flag"), f"{object_id}: open_flag")
+        locked_flag = _clean_target(raw_object.get("locked_flag"), f"{object_id}: locked_flag")
+        if object_type == "container":
+            if open_flag is None or open_flag not in flag_ids:
+                raise StoryError(f"{object_id}: container open_flag must reference an existing flag")
+            if locked_flag is not None and locked_flag not in flag_ids:
+                raise StoryError(f"{object_id}: locked_flag references missing flag '{locked_flag}'")
+            if locked_flag == open_flag:
+                raise StoryError(f"{object_id}: open_flag and locked_flag must be different")
+        elif open_flag is not None or locked_flag is not None:
+            raise StoryError(f"{object_id}: only containers can define open_flag or locked_flag")
         object_ids.add(object_id)
-        clean_objects.append({"id": object_id, "name": object_name, "initial_location": initial_location})
+        clean_objects.append({
+            "id": object_id, "name": object_name, "type": object_type,
+            "initial_location": initial_location, "open_flag": open_flag, "locked_flag": locked_flag,
+        })
+    object_types = {record["id"]: record["type"] for record in clean_objects}
     first_story_bank = STORY_BANKS[0]
     usable_bank_count = len(STORY_BANKS)
     clean_rooms: list[dict[str, Any]] = []
@@ -445,7 +464,7 @@ def validate_project(raw: Any) -> dict[str, Any]:
                 )
             for action_index, raw_action in enumerate(raw_context_actions):
                 action_label = f"{scene_id}: contextual action {action_index + 1}"
-                if not isinstance(raw_action, dict) or set(raw_action) - {"label", "when_all", "when_clear", "requires_carried", "requires_here", "effects"}:
+                if not isinstance(raw_action, dict) or set(raw_action) - {"label", "when_all", "when_clear", "requires_carried", "requires_here", "destination", "effects"}:
                     raise StoryError(f"{action_label} is invalid")
                 label_text = raw_action.get("label", "")
                 if not isinstance(label_text, str) or not label_text.strip() or len(label_text) > ROW_WIDTH:
@@ -476,14 +495,20 @@ def validate_project(raw: Any) -> dict[str, Any]:
                 requires_here = _clean_target(raw_action.get("requires_here"), f"{action_label} requires_here")
                 take_object = _clean_target(raw_action_effects.get("take_object"), f"{action_label} take_object")
                 remove_object = _clean_target(raw_action_effects.get("remove_object"), f"{action_label} remove_object")
+                destination = _clean_target(raw_action.get("destination"), f"{action_label} destination")
                 for field, object_id in (("requires_carried", requires_carried), ("requires_here", requires_here), ("take_object", take_object), ("remove_object", remove_object)):
                     if object_id is not None and object_id not in object_ids:
                         raise StoryError(f"{action_label} {field} references missing object '{object_id}'")
+                if requires_carried is not None and object_types[requires_carried] != "portable":
+                    raise StoryError(f"{action_label} cannot require a container to be carried")
+                if take_object is not None and object_types[take_object] != "portable":
+                    raise StoryError(f"{action_label} cannot take a container")
                 if take_object is not None and take_object == remove_object:
                     raise StoryError(f"{action_label} cannot take and remove the same object")
                 clean_scenes[-1]["context_actions"].append({
                     "label": label_text, "when_all": when_all, "when_clear": when_clear,
                     "requires_carried": requires_carried, "requires_here": requires_here,
+                    "destination": destination,
                     "effects": {**action_effects, "take_object": take_object, "remove_object": remove_object},
                 })
             scene_count += 1
@@ -536,9 +561,18 @@ def validate_project(raw: Any) -> dict[str, Any]:
     start_room = raw.get("start_room", clean_rooms[0]["id"])
     if not isinstance(start_room, str) or start_room not in room_ids:
         raise StoryError("start_room must name an existing room")
+    containers = {record["id"]: record for record in clean_objects if record["type"] == "container"}
     for object_record in clean_objects:
         location = object_record["initial_location"]
-        if location not in room_ids and location not in {"carried", "removed"}:
+        if object_record["type"] == "container":
+            if location not in room_ids:
+                raise StoryError(f"{object_record['id']}: a container must initially be located in a room")
+            continue
+        if location.startswith("container:"):
+            container_id = location.split(":", 1)[1]
+            if container_id not in containers:
+                raise StoryError(f"{object_record['id']}: initial_location references missing container '{container_id}'")
+        elif location not in room_ids and location not in {"carried", "removed"}:
             raise StoryError(f"{object_record['id']}: initial_location references missing room '{location}'")
 
     scene_room = {scene["id"]: room["id"] for room in clean_rooms for scene in room["scenes"]}
@@ -556,6 +590,17 @@ def validate_project(raw: Any) -> dict[str, Any]:
             for direction, target_room in scene["exit_overrides"].items():
                 if target_room is not None and target_room not in room_ids:
                     raise StoryError(f"{scene['id']}: {direction} override points to missing room '{target_room}'")
+            for action_index, action in enumerate(scene["context_actions"]):
+                destination = action["destination"]
+                if destination is None:
+                    continue
+                kind, separator, target_id = destination.partition(":")
+                if not separator or kind not in {"room", "scene"} or not target_id:
+                    raise StoryError(f"{scene['id']}: contextual action {action_index + 1} destination is invalid")
+                if kind == "room" and target_id not in room_ids:
+                    raise StoryError(f"{scene['id']}: contextual action {action_index + 1} destination references missing room '{target_id}'")
+                if kind == "scene" and target_id not in scene_room:
+                    raise StoryError(f"{scene['id']}: contextual action {action_index + 1} destination references missing scene '{target_id}'")
 
     return {"version": 2, "title": title.strip(), "start_room": start_room, "appearance": appearance, "appearance_presets": appearance_presets, "splash": splash, "flags": clean_flags, "objects": clean_objects, "rooms": clean_rooms}
 
@@ -588,6 +633,14 @@ def generate_bank_source(project: dict[str, Any], bank: int) -> str:
         target_bank, target_index = locations[scene_id]
         return f"BANK_{target_bank}|{target_index}"
 
+    def encoded_context_destination(action: dict[str, Any]) -> str:
+        destination = action["destination"]
+        if destination is None:
+            return "NO_EXIT"
+        kind, target_id = destination.split(":", 1)
+        scene_id = rooms[target_id]["entry_scene"] if kind == "room" else target_id
+        return encoded_scene(scene_id)
+
     initial_object_locations: list[str] = []
     for record in project["objects"]:
         location = record["initial_location"]
@@ -595,8 +648,18 @@ def generate_bank_source(project: dict[str, Any], bank: int) -> str:
             initial_object_locations.append("$FE")
         elif location == "removed":
             initial_object_locations.append("$FF")
+        elif location.startswith("container:"):
+            initial_object_locations.append(f"${CONTAINER_LOCATION_BASE + object_indexes[location.split(':', 1)[1]]:02X}")
         else:
             initial_object_locations.append(encoded_scene(rooms[location]["entry_scene"]))
+    container_open_flags = [
+        f"${flag_indexes[record['open_flag']]:02X}" if record["type"] == "container" else "$FF"
+        for record in project["objects"]
+    ]
+    container_locked_flags = [
+        f"${flag_indexes[record['locked_flag']]:02X}" if record["type"] == "container" and record["locked_flag"] else "$FF"
+        for record in project["objects"]
+    ]
     context_actions = [
         (page_index, action_index, action)
         for page_index, (_, scene) in enumerate(pages)
@@ -616,6 +679,8 @@ def generate_bank_source(project: dict[str, Any], bank: int) -> str:
         "InitialFlags", "        dc.b " + ",".join(f"${value:02X}" for value in initial_masks),
         f"OBJECT_COUNT    equ {len(project['objects'])}",
         "InitialObjectLocations", "        dc.b " + (",".join(initial_object_locations) or "$FF"),
+        "ObjectContainerOpenFlags", "        dc.b " + (",".join(container_open_flags) or "$FF"),
+        "ObjectContainerLockedFlags", "        dc.b " + (",".join(container_locked_flags) or "$FF"),
         "ObjectNameLo", "        dc.b " + (",".join(f"<ObjectName{index}" for index in range(len(project["objects"]))) or "<BlankLine"),
         "ObjectNameHi", "        dc.b " + (",".join(f">ObjectName{index}" for index in range(len(project["objects"]))) or ">BlankLine"), "",
         "PageTextLo",
@@ -723,6 +788,7 @@ def generate_bank_source(project: dict[str, Any], bank: int) -> str:
             lines.append(f"        dc.b {','.join(object_requirements + ['$FF'])}")
             lines.append(f"        dc.b {','.join(operations + ['$FF'])}")
             lines.append(f"        dc.b {','.join(object_operations + ['$FF'])}")
+            lines.append(f"        dc.b {encoded_context_destination(action)}")
 
     for index, (room, scene) in enumerate(pages):
         lines.append("")
@@ -841,6 +907,14 @@ def generate_logic_source(project: dict[str, Any]) -> str:
     rooms = {room["id"]: room for room in project["rooms"]}
     flag_indexes = {flag["id"]: index for index, flag in enumerate(project["flags"])}
     object_indexes = {record["id"]: index for index, record in enumerate(project["objects"])}
+
+    def encoded_context_destination(action: dict[str, Any]) -> str:
+        destination = action["destination"]
+        if destination is None:
+            return "NO_EXIT"
+        kind, target_id = destination.split(":", 1)
+        scene_id = rooms[target_id]["entry_scene"] if kind == "room" else target_id
+        return _encoded_f4_scene(locations, scene_id)
     start_scene = rooms[project["start_room"]]["entry_scene"]
     start_bank, start_page = locations[start_scene]
     initial_masks = [0] * 8
@@ -852,13 +926,24 @@ def generate_logic_source(project: dict[str, Any]) -> str:
         location = record["initial_location"]
         if location == "carried": initial_objects.append("$FE")
         elif location == "removed": initial_objects.append("$FF")
+        elif location.startswith("container:"): initial_objects.append(f"${CONTAINER_LOCATION_BASE + object_indexes[location.split(':', 1)[1]]:02X}")
         else: initial_objects.append(_encoded_f4_scene(locations, rooms[location]["entry_scene"]))
+    container_open_flags = [
+        f"${flag_indexes[record['open_flag']]:02X}" if record["type"] == "container" else "$FF"
+        for record in project["objects"]
+    ]
+    container_locked_flags = [
+        f"${flag_indexes[record['locked_flag']]:02X}" if record["type"] == "container" and record["locked_flag"] else "$FF"
+        for record in project["objects"]
+    ]
 
     lines = [
         "; GENERATED global story logic for 32K F4 bank 1", "        org $F500",
         f"START_BANK equ {start_bank}", f"START_PAGE equ {start_page}", f"START_SCENE equ {indexes[start_scene]}",
         "InitialFlags", "        dc.b " + ",".join(f"${value:02X}" for value in initial_masks),
         f"OBJECT_COUNT equ {len(project['objects'])}", "InitialObjectLocations", "        dc.b " + (",".join(initial_objects) or "$FF"),
+        "ObjectContainerOpenFlags", "        dc.b " + (",".join(container_open_flags) or "$FF"),
+        "ObjectContainerLockedFlags", "        dc.b " + (",".join(container_locked_flags) or "$FF"),
         "StoryBankOffsets", "        dc.b 0,0,0,17,34,51,68,85", "",
     ]
     def emit_table(label: str, values: list[str]) -> None:
@@ -935,7 +1020,8 @@ def generate_logic_source(project: dict[str, Any]) -> str:
                           "        dc.b " + ",".join(requirements + ["$FF"]),
                           "        dc.b " + ",".join(object_requirements + ["$FF"]),
                           "        dc.b " + ",".join(operations + ["$FF"]),
-                          "        dc.b " + ",".join(object_operations + ["$FF"])])
+                          "        dc.b " + ",".join(object_operations + ["$FF"]),
+                          f"        dc.b {encoded_context_destination(action)}"])
     for global_index, action_index, action in contexts:
         lines.append(f'ContextLabel{global_index}_{action_index} dc.b "{action["label"].ljust(ROW_WIDTH).replace(" ", "[")}"')
     lines.append("")

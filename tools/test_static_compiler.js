@@ -9,6 +9,8 @@ const root = process.cwd();
 eval(fs.readFileSync(path.join(root, "editor", "story_compiler.js"), "utf8"));
 const project = JSON.parse(fs.readFileSync(path.join(root, "editor", "project.json"), "utf8"));
 let { generated } = globalThis.TextAdventureStoryCompiler.generateSources(project);
+const engineSource = fs.readFileSync(path.join(root, "src", "engine.asm"), "utf8");
+if (!/lda #ACTION_NEXT\r?\n\s*jsr LoadActionDestination\r?\n\s*cmp #NO_EXIT/.test(engineSource)) throw new Error("action mode does not prefer an available NEXT link");
 
 function normalized(value) { return value.replaceAll("\\", "/").split("/").reduce((parts, part) => { if (!part || part === ".") return parts; if (part === "..") parts.pop(); else parts.push(part); return parts; }, []).join("/"); }
 function expand(filename, stack = []) {
@@ -74,6 +76,33 @@ if (fs.existsSync(dasm)) {
         scenes: [{ id: `scene_${index}`, name: `Scene ${index}`, text: Array(10).fill(""), next: null, exit_overrides: {}, ending: index === 101, effects: {}, context_actions: [] }],
       })),
     };
+    const containerProject = JSON.parse(JSON.stringify(capacityProject));
+    containerProject.title = "Container runtime";
+    containerProject.rooms = containerProject.rooms.slice(0, 2);
+    containerProject.rooms[0].exits.east = null;
+    containerProject.flags = [{ id: "CHEST_OPEN", initial: false }, { id: "CHEST_LOCKED", initial: true }];
+    containerProject.objects = [
+      { id: "chest", name: "OLD CHEST", type: "container", initial_location: "room_0", open_flag: "CHEST_OPEN", locked_flag: "CHEST_LOCKED" },
+      { id: "key", name: "SMALL KEY", type: "portable", initial_location: "container:chest" },
+    ];
+    containerProject.rooms[0].scenes[0].context_actions = [{
+      label: "TAKE KEY", when_all: [], when_clear: [], requires_carried: null, requires_here: "key",
+      destination: "room:room_1",
+      effects: { set: [], clear: [], toggle: [], take_object: "key", remove_object: null },
+    }];
+    ({ generated } = globalThis.TextAdventureStoryCompiler.generateSources(containerProject));
+    const containerLogic = generated.get("src/data/logic_story.inc");
+    if (!containerLogic.includes("InitialObjectLocations\n        dc.b BANK_2|0,$F1")) throw new Error("contained object location was not generated");
+    if (!containerLogic.includes("ObjectContainerOpenFlags\n        dc.b $00,$FF")) throw new Error("container open-flag table was not generated");
+    if (!containerLogic.includes("dc.b BANK_2|1")) throw new Error("contextual-action destination was not generated");
+    for (const bank of [1, 2]) {
+      const sourcePath = path.join(temporary, `container-bank${bank}.asm`);
+      const binaryPath = path.join(temporary, `container-bank${bank}.bin`);
+      fs.writeFileSync(sourcePath, expand(`src/bank${bank}.asm`));
+      const result = childProcess.spawnSync(dasm, [sourcePath, "-f3", "-v0", `-o${binaryPath}`], { encoding: "utf8" });
+      if (result.status !== 0) throw new Error(`container bank ${bank} failed\n${result.stdout}\n${result.stderr}`);
+      if (fs.statSync(binaryPath).size !== 4096) throw new Error(`container bank ${bank} is not 4096 bytes`);
+    }
     ({ generated } = globalThis.TextAdventureStoryCompiler.generateSources(capacityProject));
     if (!generated.get("src/data/logic_story.inc").includes("PageEndings")) throw new Error("ending-scene logic table was not generated");
     if (!generated.get("src/data/bank7_text.inc").includes("$80")) throw new Error("ending-scene renderer marker was not generated");
@@ -87,4 +116,4 @@ if (fs.existsSync(dasm)) {
     }
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 }
-console.log("Static compiler assembled all F4 banks, both appearance modes, and the full 102-scene layout.");
+console.log("Static compiler assembled all F4 banks, container and contextual destinations, both appearance modes, and the full 102-scene layout.");

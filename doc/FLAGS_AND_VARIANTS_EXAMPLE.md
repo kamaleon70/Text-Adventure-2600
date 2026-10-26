@@ -1,34 +1,62 @@
-# Working flag example: Dock lamp
+# Working flag example: Forest Shrine chest
 
-The checked-in editor project contains a complete Phase 2 example using the
-first room.
+The bundled **Castle of the Two Keys** project demonstrates flags, ordered room
+variants, a container, and a portable object in Forest Shrine.
 
 ## Records in the project
 
-- Flag: `DOCK_LAMP_OFF`, initially clear.
-- Primary scene: `room_1_dock`.
-- Conditional scene: `room_1_dock_dark`.
-- Room variant: when `DOCK_LAMP_OFF` is set, show `room_1_dock_dark`.
-- Primary-scene `NEXT` effect: set `DOCK_LAMP_OFF` and show the dark scene.
-- Dark-scene `NEXT` effect: clear `DOCK_LAMP_OFF` and return to the primary
-  scene.
+- `CHEST_OPEN`, initially clear;
+- `BRASS_TAKEN`, initially clear;
+- primary scene: Shrine - Chest Closed;
+- conditional scene: Shrine - Key Revealed;
+- conditional scene: Shrine - Empty Chest;
+- Chest container using `CHEST_OPEN`;
+- Brass Key initially located inside Chest.
 
-## Testing in the browser or cartridge
+## Ordered room variants
 
-1. Start in Room 1 - Dock.
-2. Press Fire to enter action mode.
-3. Move once to select `NEXT`, release the controls, and press Fire.
-4. The lamp-dark description appears and the flag remains set.
-5. Move out of the dock and return. The dark description is selected again.
-6. Use `NEXT` on the dark scene to clear the flag and restore the original
-   description.
+Forest Shrine checks these rules from top to bottom:
 
-The Playtest tab also exposes `DOCK_LAMP_OFF` in its Flag debugger. Changing
-that checkbox lets an author inspect either room state immediately.
+1. when `CHEST_OPEN` and `BRASS_TAKEN` are set, show Shrine - Empty Chest;
+2. when `CHEST_OPEN` is set and `BRASS_TAKEN` is clear, show Shrine - Key
+   Revealed;
+3. otherwise show the primary closed-chest scene.
 
-## Room exits versus scene overrides
+The empty-chest rule must come first because it is more specific. If the
+key-revealed rule were first, it could hide the empty scene.
 
-Room exits are the normal NORTH/EAST/SOUTH/WEST connections shared by every
-scene in a room. Scene movement overrides are not a second required set of
-exits. Leave the **Optional movement overrides** section closed and inherited
-unless one particular scene needs to block or redirect a room exit.
+## Actions and state changes
+
+OPEN CHEST:
+
+- requires `CHEST_OPEN` clear;
+- requires Chest here;
+- SETs `CHEST_OPEN`;
+- stays in the current room.
+
+The room is resolved again and displays Shrine - Key Revealed. The Brass Key
+now satisfies **Must be here** because its container is open.
+
+TAKE BRASS:
+
+- requires Brass Key here;
+- SETs `BRASS_TAKEN`;
+- takes Brass Key into Inventory.
+
+The room resolves again and displays Shrine - Empty Chest.
+
+CLOSE CHEST clears `CHEST_OPEN`, returning the room to its primary closed
+description without moving or deleting any remaining contents.
+
+## Testing
+
+1. Move EAST from Thorn Wood into Forest Shrine.
+2. Enter action mode, select OPEN CHEST, and confirm the revealed-key scene.
+3. Select TAKE BRASS and confirm the empty-chest scene.
+4. Open Inventory and confirm BRASS KEY is carried.
+5. Leave and return; the persistent flags select the same empty-chest state.
+6. Use **Reset to start room** and verify the chest is closed and the key is
+   inside it again.
+
+The Playtest flag and object debuggers can force each state without replaying
+the complete route.

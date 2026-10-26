@@ -1,91 +1,90 @@
 # Rooms, scenes, and continuation text
 
-## Why rooms and pages should be separate
+## Rooms and scenes
 
-The current engine treats every ten-row text page as a destination. That is
-adequate for navigation, but it makes a second screen of description look like
-a separate room. The next model should use:
+A **room** is a logical location with a name, map position, four normal exits,
+and one primary scene. A **scene** is one Atari display containing ten authored
+rows of up to 12 characters. The engine owns the eleventh row for movement,
+actions, Inventory, or Restart.
 
-- **Room** — a location with exits and interactions.
-- **Scene** — one ten-row page displayed for that room.
-- **Continuation** — another scene reached with `NEXT`, still belonging to the
-  same room.
-- **Variant** — an alternate scene selected because game state changed.
+A room may contain:
 
-A room may therefore contain a primary scene, zero or more continuation
-scenes, and optional conditional variants.
+- one primary scene shown by default;
+- continuation scenes connected with NEXT;
+- conditional scenes selected by room variants;
+- ending scenes where only Restart is available.
 
-## Implemented editor model
+All scenes count toward the cartridge limit of 102 scenes.
 
-```json
-{
-  "id": "shaft",
-  "name": "Deep Shaft",
-  "exits": {
-    "north": "core",
-    "south": "flood",
-    "west": "lab"
-  },
-  "entry_scene": "shaft_dark_1",
-  "scenes": [
-    {
-      "id": "shaft_dark_1",
-      "text": ["ROOM 6 SHAFT", "..."],
-      "next": "shaft_dark_2",
-      "exit_overrides": {}
-    },
-    {
-      "id": "shaft_dark_2",
-      "text": ["COLD AIR", "RISES BELOW.", "..."],
-      "next": null,
-      "exit_overrides": {
-        "south": null
-      }
-    }
-  ]
-}
+## Example: a two-page library
+
+Create a room named **Old Library** with the normal exits WEST to Great Hall and
+NORTH to Dungeon.
+
+The primary scene might contain:
+
+```text
+OLD LIBRARY
+DUSTY SHELVES
+LEAN INWARD.
+A BLACK BOOK
+LIES OPEN.
 ```
 
-Room exits are inherited by every scene. An `exit_overrides` entry can redirect
-one movement for a particular scene or use `null` to disable it. Omitting that
-direction from `exit_overrides` preserves inheritance.
+Add a second scene named **Strange Book** and select it as the primary scene's
+NEXT destination:
 
-## Runtime strategy
+```text
+THE BOOK TELLS
+OF TWO KEYS
+AND A CROWN
+ABOVE THE KEEP.
+```
 
-### Current implementation
+When the player presses Fire on the first page, NEXT is initially selected.
+After NEXT displays the second page, LOOK returns to the library's primary or
+currently matching conditional scene.
 
-The generator keeps the current page records. It copies the effective parent
-room movement destinations into every scene and compiles `NEXT` as another
-page destination. This delivers multi-page rooms with no additional runtime
-RAM.
+Scene order alone does not create this connection. The NEXT field must be set.
 
-### Later implementation
+## Primary scene and room entry
 
-Add one-byte `CurrentRoom` and keep `CurrentPage` as the selected scene. On a
-movement action:
+**Make primary** chooses the default scene for the logical room. Entering the
+room through movement or an action destination begins with that scene unless a
+room variant matches the current flags.
 
-1. follow the room exit;
-2. set `CurrentRoom`;
-3. resolve its entry variant;
-4. set `CurrentPage` to the selected scene.
+**Set start room** chooses the logical room used after power-on and Restart.
+Restart also restores the configured initial flag and object states.
 
-On `NEXT`, change only `CurrentPage`. The player remains in `CurrentRoom`.
+## Shared exits and scene overrides
 
-## Editor behavior
+The room's NORTH, EAST, SOUTH, and WEST exits are inherited by all its scenes.
+This means a continuation page normally has the same movement as its primary
+page.
 
-- The world graph should display rooms, not continuation pages.
-- Double-clicking a room opens its scene list.
-- Each scene editor keeps the existing ten 12-character rows.
-- `NEXT` is selected from scenes in the same room.
-- A warning should appear if a continuation points to itself or forms an
-  accidental endless loop.
-- Space calculations still count every scene because every one consumes a
-  120-byte text record.
+Use **Optional movement overrides** only when one scene needs different
+behavior. An override can:
 
-## Limits
+- redirect a direction to another room;
+- block a direction on that scene;
+- return to **Same as room** to restore inheritance.
 
-- A scene always costs 120 bytes even when most rows are blank.
-- Continuations reduce the number of distinct rooms that fit in the ROM.
-- Two scenes still pack efficiently into one 256-byte aligned text block.
-- The generator must keep enforcing `$00` and `$78` starting offsets to retain
-  stable scanline timing.
+Example: a normal Bridge room allows EAST, but a Collapsed Bridge conditional
+scene can override EAST with no destination while retaining the other exits.
+
+## NEXT, LOOK, and variants
+
+- NEXT displays another scene in the same room.
+- NEXT is initially selected in action mode when a link exists.
+- LOOK returns to the room's primary or first matching conditional scene.
+- Entering a logical room also resolves its variants.
+- Showing a specific scene through a contextual-action destination goes
+  directly to that scene. LOOK can then return to the resolved room entry.
+
+## Capacity and text storage
+
+Every scene reserves ten rows of 12 characters, or 120 authored characters,
+even when some rows are blank. Two scenes are packed efficiently into an
+aligned ROM block, and the browser compiler manages their physical banks
+automatically. Authors only need to monitor the displayed scene and character
+capacity counters.

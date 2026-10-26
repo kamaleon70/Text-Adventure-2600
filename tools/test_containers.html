@@ -1,0 +1,98 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Container editor and playtest smoke test</title>
+<pre id="result">RUNNING</pre>
+<iframe id="editor" src="../.itch-container-smoke/index.html" style="width:1600px;height:1000px;border:0"></iframe>
+<script>
+  const result = document.querySelector("#result");
+  const frame = document.querySelector("#editor");
+  const fail = (message) => { result.textContent = `FAIL: ${message}`; };
+  const project = {
+    version: 2, title: "Container smoke test", start_room: "vault",
+    appearance: { background_color: 130, border_color: 132, text_color: 14, action_text_color: 14, action_background_enabled: false, action_background_color: 36, border_style: "striped" },
+    appearance_presets: [], splash: { enabled: false, filename: "", source: "", delay_frames: 120, background_color: 0, metadata: null },
+    flags: [{ id: "CHEST_OPEN", initial: false }, { id: "CHEST_LOCKED", initial: false }],
+    objects: [
+      { id: "chest", name: "OLD CHEST", type: "container", initial_location: "vault", open_flag: "CHEST_OPEN", locked_flag: "CHEST_LOCKED" },
+      { id: "key", name: "SMALL KEY", type: "portable", initial_location: "container:chest" },
+    ],
+    rooms: [{
+      id: "vault", name: "Vault", position: { x: 80, y: 80 }, entry_scene: "vault_main",
+      exits: { north: null, east: null, south: null, west: null }, variants: [],
+      scenes: [{
+        id: "vault_main", name: "Vault", text: ["OLD VAULT", "CHEST WAITS", "", "", "", "", "", "", "", ""], next: null, exit_overrides: {}, ending: false, effects: {},
+        context_actions: [
+          { label: "OPEN CHEST", when_all: [], when_clear: ["CHEST_OPEN", "CHEST_LOCKED"], requires_carried: null, requires_here: "chest", effects: { set: ["CHEST_OPEN"], clear: [], toggle: [], take_object: null, remove_object: null } },
+          { label: "CLOSE CHEST", when_all: ["CHEST_OPEN"], when_clear: [], requires_carried: null, requires_here: "chest", effects: { set: [], clear: ["CHEST_OPEN"], toggle: [], take_object: null, remove_object: null } },
+          { label: "TAKE KEY", when_all: [], when_clear: [], requires_carried: null, requires_here: "key", destination: "room:outside", effects: { set: [], clear: [], toggle: [], take_object: "key", remove_object: null } },
+        ],
+      }],
+    }, {
+      id: "outside", name: "Outside", position: { x: 360, y: 80 }, entry_scene: "outside_main",
+      exits: { north: null, east: null, south: null, west: "vault" }, variants: [],
+      scenes: [{
+        id: "outside_main", name: "Outside", text: ["YOU STEP OUT", "WITH THE KEY", "", "", "", "", "", "", "", ""], next: null, exit_overrides: {}, ending: false, effects: {}, context_actions: [],
+      }],
+    }],
+  };
+
+  frame.addEventListener("load", () => {
+    const started = Date.now();
+    const waitForEditor = setInterval(() => {
+      const document = frame.contentDocument;
+      const loadInput = document?.querySelector("#load-project-file");
+      if (!loadInput || !frame.contentWindow.TextAdventureEditor) {
+        if (Date.now() - started > 15000) { clearInterval(waitForEditor); fail("editor did not become ready"); }
+        return;
+      }
+      clearInterval(waitForEditor);
+      frame.contentWindow.alert = (message) => { frame.contentWindow.__containerAlert = String(message); };
+      const file = new frame.contentWindow.File([JSON.stringify(project)], "container-test.json", { type: "application/json" });
+      Object.defineProperty(loadInput, "files", { configurable: true, value: [file] });
+      loadInput.dispatchEvent(new Event("change", { bubbles: true }));
+      setTimeout(() => {
+        try {
+          document.querySelector('[data-tab="objects"]').click();
+          const rows = [...document.querySelectorAll(".object-row")];
+          if (rows.length !== 2) throw new Error(`object definitions were not loaded${frame.contentWindow.__containerAlert ? `: ${frame.contentWindow.__containerAlert}` : ""}`);
+          if (rows[0].querySelector(".object-type").value !== "container") throw new Error("container type was not restored");
+          if (rows[0].querySelector(".container-object-fields").classList.contains("hidden")) throw new Error("container controls are hidden");
+          if (rows[0].querySelector(".object-open-flag").value !== "CHEST_OPEN") throw new Error("container open flag was not restored");
+          if (rows[1].querySelector(".object-location").value !== "container:chest") throw new Error("contained item location was not restored");
+
+          document.querySelector('[data-tab="flags"]').click();
+          const destinations = [...document.querySelectorAll(".context-destination")];
+          if (destinations[2]?.value !== "room:outside") throw new Error("contextual-action destination was not restored");
+
+          document.querySelector('[data-tab="play"]').click();
+          const action = (index) => document.querySelector(`#play-actions [data-context="${index}"]`);
+          if (action(0).disabled || !action(1).disabled || !action(2).disabled) throw new Error("closed-container action availability is incorrect");
+          action(0).click();
+          if (!action(0).disabled || action(1).disabled || action(2).disabled) throw new Error("opening the container did not reveal its contents");
+          action(1).click();
+          if (action(2).disabled === false) throw new Error("closing the container did not hide its contents");
+          action(0).click();
+          action(2).click();
+          if (!document.querySelector("#play-page-name").textContent.includes("Outside")) throw new Error("contextual action did not enter its destination room");
+          document.querySelector("#play-actions [data-inventory]").click();
+          if (!document.querySelector("#play-text").textContent.includes("SMALL KEY")) throw new Error("taken container content did not enter inventory");
+
+          frame.contentWindow.HTMLAnchorElement.prototype.click = function () { frame.contentWindow.__downloadedRomName = this.download; };
+          document.querySelector('[data-tab="build"]').click();
+          document.querySelector("#build-download").click();
+          const buildStarted = Date.now();
+          const waitForBuild = setInterval(() => {
+            const status = document.querySelector("#job-status")?.textContent;
+            if (status === "Succeeded" && frame.contentWindow.__downloadedRomName === "textadventure2600.bin") {
+              clearInterval(waitForBuild);
+              result.textContent = "PASS: container editor, contextual destination, inventory, and packaged ROM build";
+            } else if (status === "Failed" || Date.now() - buildStarted > 30000) {
+              clearInterval(waitForBuild);
+              fail(document.querySelector("#job-output")?.textContent || "container ROM build timed out");
+            }
+          }, 100);
+        } catch (error) { fail(error.message || error); }
+      }, 400);
+    }, 100);
+  });
+</script>

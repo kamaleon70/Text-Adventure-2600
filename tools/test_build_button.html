@@ -22,24 +22,86 @@
       frame.contentWindow.HTMLAnchorElement.prototype.click = function () {
         frame.contentWindow.__downloadedRomName = this.download;
       };
+      const buildButtons = () => [...document.querySelectorAll(".browser-build-action")];
+      const buttonsEnabled = () => buildButtons().every((candidate) => !candidate.disabled);
+      const buttonsDisabled = () => buildButtons().every((candidate) => candidate.disabled);
+      const roomName = document.querySelector("#room-name");
+      roomName.value = `${roomName.value} TEST`;
+      roomName.dispatchEvent(new Event("change", { bubbles: true }));
+      if (!buttonsEnabled()) {
+        result.textContent = "FAIL: static build buttons were disabled by an unsaved edit";
+        return;
+      }
       document.querySelector('[data-tab="build"]').click();
       button.click();
+      if (!buttonsDisabled()) {
+        result.textContent = "FAIL: build buttons were not disabled while Build & run was active";
+        return;
+      }
       const buildStarted = Date.now();
       const waitForBuild = window.setInterval(() => {
         const status = document.querySelector("#job-status")?.textContent;
         if (status === "Succeeded") {
           clearInterval(waitForBuild);
+          if (!buttonsEnabled()) {
+            result.textContent = "FAIL: build buttons remained disabled after Build & run";
+            return;
+          }
           const emulator = document.querySelector("#javatari-host iframe");
           if (!emulator) {
             result.textContent = "FAIL: build succeeded but Javatari did not open";
             return;
           }
           document.querySelector("#build-download").click();
+          if (!buttonsDisabled()) {
+            result.textContent = "FAIL: build buttons were not disabled while Build & download was active";
+            return;
+          }
           const downloadStarted = Date.now();
           const waitForDownload = window.setInterval(() => {
             if (frame.contentWindow.__downloadedRomName === "textadventure2600.bin") {
               clearInterval(waitForDownload);
-              result.textContent = "PASS: Build & run opened Javatari; Build & download produced the ROM";
+              if (!buttonsEnabled()) {
+                result.textContent = "FAIL: build buttons remained disabled after Build & download";
+                return;
+              }
+              const compiler = frame.contentWindow.TextAdventureStoryCompiler;
+              const originalGenerateSources = compiler.generateSources;
+              compiler.generateSources = () => { throw new Error("intentional build-button regression failure"); };
+              document.querySelector("#build-download").click();
+              if (!buttonsDisabled()) {
+                compiler.generateSources = originalGenerateSources;
+                result.textContent = "FAIL: build buttons were not disabled while the failing build was active";
+                return;
+              }
+              const failureStarted = Date.now();
+              const waitForFailure = window.setInterval(() => {
+                const failureStatus = document.querySelector("#job-status")?.textContent;
+                if (failureStatus === "Failed") {
+                  clearInterval(waitForFailure);
+                  compiler.generateSources = originalGenerateSources;
+                  if (!buttonsEnabled()) {
+                    result.textContent = "FAIL: build buttons remained disabled after a failed build";
+                    return;
+                  }
+                  buildButtons().forEach((candidate) => { candidate.disabled = true; });
+                  frame.contentWindow.__downloadedRomName = "";
+                  document.querySelector("#download-project").click();
+                  if (frame.contentWindow.__downloadedRomName !== "textadventure2600.json") {
+                    result.textContent = "FAIL: Save config did not download the project";
+                    return;
+                  }
+                  if (!buttonsEnabled()) {
+                    result.textContent = "FAIL: Save config did not restore both build buttons";
+                    return;
+                  }
+                  result.textContent = "PASS: success, failure, download, Javatari, and Save config all restore both build buttons";
+                } else if (Date.now() - failureStarted > 5000) {
+                  clearInterval(waitForFailure);
+                  compiler.generateSources = originalGenerateSources;
+                  result.textContent = "FAIL: intentional failed build did not finish";
+                }
+              }, 50);
             } else if (document.querySelector("#job-status")?.textContent === "Failed" || Date.now() - downloadStarted > 30000) {
               clearInterval(waitForDownload);
               result.textContent = `FAIL: ${document.querySelector("#job-output")?.textContent || "download build timed out"}`;
